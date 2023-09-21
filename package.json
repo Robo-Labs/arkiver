@@ -1,0 +1,5 @@
+{
+  "name": "arkiver-root",
+	"private": true,
+	"workspaces": ["packages/*"]
+}

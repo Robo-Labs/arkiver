@@ -1,0 +1,12 @@
+{
+  "name": "arkiver",
+  "module": "index.ts",
+  "type": "module",
+	"bin": "./index.ts",
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
