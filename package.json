@@ -4,7 +4,8 @@
   "type": "module",
   "bin": "./index.ts",
   "devDependencies": {
-    "bun-types": "latest"
+    "bun-types": "latest",
+    "drizzle-kit": "^0.19.13"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
@@ -14,6 +15,7 @@
     "drizzle-orm": "^0.28.6",
     "elysia": "^0.7.6",
     "lru-cache": "^10.0.1",
+    "pg": "^8.11.3",
     "pino": "^8.15.1",
     "postgres": "^3.3.5",
     "viem": "^1.12.0"

@@ -1,6 +1,7 @@
 import {
   PgArrayBuilder,
   PgBooleanBuilderInitial,
+  PgCustomColumnBuilder,
   PgDoublePrecisionBuilderInitial,
   PgIntegerBuilder,
   PgNumericBuilderInitial,
@@ -103,8 +104,14 @@ export type NumberColumnBuilder<TName extends string> =
 export type BooleanColumnBuilder<TName extends string> =
   PgBooleanBuilderInitial<TName>;
 
-export type BigIntColumnBuilder<TName extends string> =
-  PgNumericBuilderInitial<TName>;
+export type BigIntColumnBuilder<TName extends string> = PgCustomColumnBuilder<{
+  name: TName;
+  dataType: "custom";
+  columnType: "PgCustomColumn";
+  data: bigint;
+  driverParam: string;
+  enumValues: undefined;
+}>;
 
 export type DateColumnBuilder<TName extends string> =
   PgTimestampBuilderInitial<TName>;
@@ -120,6 +127,10 @@ export type RefColumnBuilder<TName extends string> = PgIntegerBuilder<{
 
 // -- Tables --
 
+export type Referral =
+  | { referred: string; type: "one" }
+  | { referred: string; type: "many" };
+
 export type ArkiveTable<
   TName extends string = string,
   TArkiveTableSchema extends ArkiveTableSchema = ArkiveTableSchema
@@ -127,34 +138,41 @@ export type ArkiveTable<
   _: {
     schema: TArkiveTableSchema;
     name: TName;
+    relations: Record<string, Referral>;
   };
+  table: ArkiveSchemaToDrizzleTable<TName, TArkiveTableSchema>;
+  insertType: ArkiveSchemaToDrizzleTable<
+    TName,
+    TArkiveTableSchema
+  >["$inferInsert"];
+  selectType: ArkiveSchemaToDrizzleTable<
+    TName,
+    TArkiveTableSchema
+  >["$inferSelect"];
 };
 
 export type ArkiveTableWithRefs<TArkiveTableUnion extends ArkiveTable> =
   Exclude<TArkiveTableUnion, { _: { schema: Record<string, Scalar> } }>;
 
-export type ArkiveTableToDrizzleTable<TArkiveTable extends ArkiveTable> =
-  TArkiveTable extends ArkiveTable<infer TName, infer TArkiveTableSchema>
-    ?
-        | PgTableWithColumns<{
-            name: TName;
-            dialect: "pg";
-            schema: undefined;
-            columns: BuildColumns<
-              TArkiveTable["_"]["name"],
-              ArkiveScalarColumnsToDrizzleColumns<
-                PickByValue<
-                  RemapArkiveSchemaKeys<TArkiveTableSchema>,
-                  Scalar | Ref
-                >
-              > & {
-                id: NotNull<PgSerialBuilderInitial<"id">>;
-              },
-              "pg"
-            >;
-          }>
-        | never
-    : never;
+export type ArkiveSchemaToDrizzleTable<
+  TName extends string,
+  TArkiveSchema extends ArkiveTableSchema
+> =
+  | PgTableWithColumns<{
+      name: TName;
+      dialect: "pg";
+      schema: undefined;
+      columns: BuildColumns<
+        TName,
+        ArkiveScalarColumnsToDrizzleColumns<
+          PickByValue<RemapArkiveSchemaKeys<TArkiveSchema>, Scalar | Ref>
+        > & {
+          id: NotNull<PgSerialBuilderInitial<"id">>;
+        },
+        "pg"
+      >;
+    }>
+  | never;
 
 export type ArkiveScalarColumnsToDrizzleColumns<
   TArkiveScalarColumns extends Record<string, Scalar | Ref>

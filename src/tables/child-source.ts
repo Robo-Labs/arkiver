@@ -1,3 +1,8 @@
-import { pgTable } from "drizzle-orm/pg-core";
+import { createTable } from "../db/create-table";
 
-export const childSource = pgTable("child_source", {});
+export const childSource = createTable("child_source", {
+  address: "string",
+  contract: "string",
+  chain: "string",
+  startBlockHeight: "bigint",
+});
