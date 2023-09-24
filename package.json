@@ -1,5 +1,21 @@
 {
-  "name": "arkiver-root",
-	"private": true,
-	"workspaces": ["packages/*"]
+  "name": "arkiver",
+  "module": "index.ts",
+  "type": "module",
+  "bin": "./index.ts",
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "abitype": "^0.9.8",
+    "drizzle-orm": "^0.28.6",
+    "elysia": "^0.7.6",
+    "lru-cache": "^10.0.1",
+    "pino": "^8.15.1",
+    "postgres": "^3.3.5",
+    "viem": "^1.12.0"
+  }
 }
