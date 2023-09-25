@@ -43,7 +43,7 @@ export const buildSchema = <
       );
     });
 
-    schema[`${tableName}Relations`] = relations;
+    schema[`${tableName}_relations`] = relations;
   }
 
   return schema as any;
@@ -55,6 +55,6 @@ type BuildSchema<
   | ({
       [ArkiveTable in TArkiveTablesUnion as ArkiveTable["_"]["name"]]: ArkiveTable["table"];
     } & {
-      [ArkiveTable in ArkiveTableWithRefs<TArkiveTablesUnion> as `${ArkiveTable["_"]["name"]}Relations`]: ArkiveTableToDrizzleRelations<ArkiveTable>;
+      [ArkiveTable in ArkiveTableWithRefs<TArkiveTablesUnion> as `${ArkiveTable["_"]["name"]}_relations`]: ArkiveTableToDrizzleRelations<ArkiveTable>;
     })
   | never;

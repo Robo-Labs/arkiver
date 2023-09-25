@@ -1,6 +1,7 @@
 import { Abi, AbiEvent, ExtractAbiEvent, ExtractAbiEventNames } from "abitype";
 import { GetContractReturnType, Log, PublicClient } from "viem";
 import { Store } from "../utils/store";
+import { Logger } from "pino";
 
 export type EventHandler<
   TAbi extends Abi,
@@ -21,7 +22,7 @@ export type EventHandlerContext<
   store: Store;
   contract: GetContractReturnType<TAbi, PublicClient>;
   getTimestampMs: () => Promise<number>;
+  logger: Logger;
 } & ExtendedContext;
 
-// logger: unknown; // TODO @hazelnutcloud: add pinojs logger to extended context
 // db: unknown; // TODO @hazelnutcloud: add drizzle db to extended context

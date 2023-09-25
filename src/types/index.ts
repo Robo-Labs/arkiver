@@ -5,6 +5,7 @@ export {
   ChainOptions,
   Chains,
   Contract,
-  DataSource,
+  BlockHandlerInfo,
+  DataSourceManifest,
 } from "./manifest.ts";
 export { ArkiveRecord, DeploymentRecord } from "./record.ts";

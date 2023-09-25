@@ -5,14 +5,14 @@ import { BlockHandler } from "./block-handler";
 
 export type Chains = keyof typeof supportedChains | (string & {});
 
-export interface ArkiveManifest {
-  dataSources: Partial<Record<Chains, DataSource>>;
+export interface ArkiveManifest<TContext extends {}> {
+  dataSources: Partial<Record<Chains, DataSourceManifest<TContext>>>;
   tables: {}[];
   name: string;
   version: string;
 }
 
-export interface DataSource {
+export interface DataSourceManifest<TContext extends {}> {
   contracts: Record<string, Contract>;
   blockHandlers: BlockHandlerInfo[];
   options: ChainOptions;

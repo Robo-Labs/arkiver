@@ -1,5 +1,6 @@
 import { Block, PublicClient } from "viem";
 import { Store } from "../utils/store";
+import { Logger } from "pino";
 
 export type BlockHandler = <ExtendedContext = {}>(
   ctx: BlockHandlerContext<ExtendedContext>
@@ -9,7 +10,7 @@ export type BlockHandlerContext<ExtendedContext = {}> = {
   block: Block<bigint, true>;
   client: PublicClient;
   store: Store;
+  logger: Logger;
 } & ExtendedContext;
 
-// logger: unknown; // TODO @hazelnutcloud: add pinojs logger to extended context
 // db: unknown; // TODO @hazelnutcloud: add drizzle db to extended context

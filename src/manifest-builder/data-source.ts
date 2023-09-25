@@ -4,15 +4,18 @@ import {
   ChainOptions,
   Chains,
   Contract,
-  DataSource,
+  DataSourceManifest,
   EventHandler,
 } from "../types";
 import { Manifest } from "./manifest";
 import { getChainObjFromChainName } from "../utils/chains";
 import { MapAbiEventToArgsWithType } from "../types/abi";
 
-export class DataSourceBuilder<TContracts extends Record<string, Abi>> {
-  dataSource: DataSource;
+export class DataSourceBuilder<
+  TContracts extends Record<string, Abi>,
+  TContext extends {}
+> {
+  dataSource: DataSourceManifest<TContext>;
   builder: Manifest<Chains>;
   chain: Chains;
 
@@ -24,7 +27,8 @@ export class DataSourceBuilder<TContracts extends Record<string, Abi>> {
     this.builder = manifest;
     this.chain = chain;
 
-    const dataSource: DataSource = this.builder.manifest.dataSources[chain] ?? {
+    const dataSource: DataSourceManifest<TContext> = this.builder.manifest
+      .dataSources[chain] ?? {
       options: {
         blockRange: options.blockRange ?? 1000n,
         rpcUrl:
@@ -53,7 +57,8 @@ export class DataSourceBuilder<TContracts extends Record<string, Abi>> {
     factorySources = {},
     sources = {},
   }: AddContractParams<TAbi, TContractName, TContracts>): DataSourceBuilder<
-    TContracts & { [key in TContractName]: TAbi }
+    TContracts & { [key in TContractName]: TAbi },
+    TContext
   > {
     if (this.dataSource.contracts[name]) {
       throw new Error(`Contract with name '${name}' already defined.`);
