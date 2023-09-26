@@ -5,7 +5,8 @@
   "bin": "./index.ts",
   "devDependencies": {
     "bun-types": "latest",
-    "drizzle-kit": "^0.19.13"
+    "drizzle-kit": "^0.19.13",
+    "pino-pretty": "^10.2.0"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

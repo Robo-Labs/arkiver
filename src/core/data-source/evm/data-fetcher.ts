@@ -1,4 +1,4 @@
-import { Abi, PublicClient, encodeEventTopics, maxUint256 } from "viem";
+import { Abi, getAbiItem, maxUint256 } from "viem";
 import { EvmDataBroker } from "./data-broker";
 import { Logger } from "pino";
 import {
@@ -8,12 +8,14 @@ import {
 } from "../../../types/manifest";
 import { DbProvider } from "../../db-provider";
 import { bigintMax, bigintMin } from "../../../utils/bigint";
+import { AbiEvent } from "abitype";
+import { EvmDataProvider } from "./data-provider";
 
 export interface EvmDataFetcherParams<TContext extends {}> {
   dataBroker: EvmDataBroker;
   logger: Logger;
   dataSourceManifest: DataSourceManifest<TContext>;
-  client: PublicClient;
+  dataProvider: EvmDataProvider;
   chain: string;
   dbProvider: DbProvider;
   concurrency?: number;
@@ -21,25 +23,27 @@ export interface EvmDataFetcherParams<TContext extends {}> {
   maxRetries?: number;
 }
 
+/**
+ * Contains logic for fetching data from the EVM and passing it to the data broker
+ */
 export class EvmDataFetcher<TContext extends {}> {
-  #dataBroker: EvmDataBroker;
-  #blockRange: bigint;
-  #client: PublicClient;
-  #logger: Logger;
-  #contracts: Record<string, Contract<TContext>>;
-  #blockHandlers: BlockHandlerInfo<TContext>[];
-  #state: {
+  dataProvider: EvmDataProvider;
+  dataBroker: EvmDataBroker;
+  state: {
     latestBlock: bigint;
   };
-  #sources: {
-    wildcard: { startBlock: bigint; abi: Abi; topic0: string }[];
+  sources: {
+    wildcard: { startBlock: bigint; abiEvents: AbiEvent[] }[];
     specific: {
       sources: Record<string, bigint>;
-      abi: Abi;
-      topic0s: string[];
+      abiEvents: AbiEvent[];
     }[];
     blocks: { startBlock: bigint; interval: bigint }[];
   };
+  contracts: Record<string, Contract<TContext>>;
+  blockHandlers: BlockHandlerInfo<TContext>[];
+  #blockRange: bigint;
+  #logger: Logger;
   #chain: string;
   #dbProvider: DbProvider;
   #config: {
@@ -57,19 +61,19 @@ export class EvmDataFetcher<TContext extends {}> {
       contracts,
       options: { blockRange },
     },
-    client,
+    dataProvider,
     chain,
     dbProvider,
     concurrency = 5,
     waitNewBlockMs = 1000,
     maxRetries = 5,
   }: EvmDataFetcherParams<TContext>) {
-    this.#dataBroker = dataBroker;
+    this.dataBroker = dataBroker;
     this.#blockRange = blockRange;
     this.#logger = logger;
-    this.#contracts = contracts;
-    this.#blockHandlers = blockHandlers;
-    this.#client = client;
+    this.contracts = contracts;
+    this.blockHandlers = blockHandlers;
+    this.dataProvider = dataProvider;
     this.#chain = chain;
     this.#dbProvider = dbProvider;
     this.#config = {
@@ -77,10 +81,10 @@ export class EvmDataFetcher<TContext extends {}> {
       concurrency,
       waitNewBlockMs,
     };
-    this.#state = {
+    this.state = {
       latestBlock: 0n,
     };
-    this.#sources = {
+    this.sources = {
       wildcard: [],
       specific: [],
       blocks: [],
@@ -159,11 +163,11 @@ export class EvmDataFetcher<TContext extends {}> {
               BigInt(this.#config.concurrency * taskIndex + offset) *
                 this.#blockRange;
 
-            if (nextBlock > this.#state.latestBlock) break;
+            if (nextBlock > this.state.latestBlock) break;
 
             const endBlock = bigintMin(
               nextBlock + this.#blockRange - 1n,
-              this.#state.latestBlock
+              this.state.latestBlock
             );
 
             try {
@@ -203,10 +207,10 @@ export class EvmDataFetcher<TContext extends {}> {
 
   async startLiveBlockProcess() {
     while (true) {
-      const startBlock = this.#state.latestBlock + 1n;
+      const startBlock = this.state.latestBlock + 1n;
       await this.updateLatestBlock();
 
-      if (startBlock > this.#state.latestBlock) {
+      if (startBlock > this.state.latestBlock) {
         await new Promise((resolve) =>
           setTimeout(resolve, this.#config.waitNewBlockMs)
         );
@@ -215,7 +219,7 @@ export class EvmDataFetcher<TContext extends {}> {
 
       const process = async (retries: number) => {
         try {
-          await this.processBlock(startBlock, this.#state.latestBlock);
+          await this.processBlock(startBlock, this.state.latestBlock);
         } catch (error) {
           this.#logger.error({
             source: "evmDataFetcher.processBlock",
@@ -247,31 +251,57 @@ export class EvmDataFetcher<TContext extends {}> {
   }
 
   async processBlock(startBlock: bigint, endBlock: bigint) {
-    // TODO @hazelnutcloud: implement
+    this.#logger.debug({
+      event: "evmDataFetcher.processBlock",
+      context: { startBlock, endBlock },
+    });
+
+    const [specificLogs, wildcardLogs, blocks] = await Promise.all([
+      this.dataProvider.fetchSpecificLogs({
+        startBlock,
+        endBlock,
+        contracts: this.sources.specific,
+      }),
+      this.dataProvider.fetchWildcardLogs({
+        startBlock,
+        endBlock,
+        sources: this.sources.wildcard,
+      }),
+      this.dataProvider.fetchBlocks({
+        startBlock,
+        endBlock,
+        sources: this.sources.blocks,
+      }),
+    ]);
+
+    this.dataBroker.sendData({
+      logs: [...specificLogs, ...wildcardLogs],
+      blocks,
+      endBlock,
+      startBlock,
+    });
   }
 
   async updateLatestBlock() {
-    this.#logger.debug({ event: "evmDataFetcher.updateLatestBlockStart" });
-
-    const latestBlock = await this.#client.getBlockNumber();
+    const latestBlock = await this.dataProvider.fetchLatestBlock();
 
     this.#logger.debug({
-      event: "evmDataFetcher.updateLatestBlockEnd",
+      event: "evmDataFetcher.updateLatestBlock",
       context: { latestBlock },
     });
 
-    this.#state.latestBlock = latestBlock;
+    this.state.latestBlock = latestBlock;
   }
 
   loadContracts() {
     let contractsLowestBlock = maxUint256;
 
-    for (const contract of Object.values(this.#contracts)) {
+    for (const contract of Object.values(this.contracts)) {
       // Get the lowest block from this contract's sources and update the contractsLowestBlock if it's lower
       const lowestBlock: bigint = Object.values(contract.sources).reduce(
         (lowestBlock: bigint, block) => {
           if (block === "live")
-            return bigintMin(this.#state.latestBlock, lowestBlock);
+            return bigintMin(this.state.latestBlock, lowestBlock);
           return bigintMin(block, lowestBlock);
         },
         maxUint256
@@ -283,38 +313,29 @@ export class EvmDataFetcher<TContext extends {}> {
 
       // If the contract has a wildcard source, add it to the logSources and ignore the rest of the sources
       if (contract.sources["*"] !== undefined) {
-        for (const eventName in contract.events) {
-          const topic0 = encodeEventTopics({
-            abi: contract.abi,
-            eventName,
-          })[0];
-
-          const startBlock =
+        const abiEvents = getAbiEvents(
+          contract.abi,
+          Object.keys(contract.events)
+        );
+        this.sources.wildcard.push({
+          startBlock:
             contract.sources["*"] === "live"
-              ? this.#state.latestBlock
-              : contract.sources["*"];
-
-          this.#sources.wildcard.push({
-            topic0,
-            abi: contract.abi,
-            startBlock,
-          });
-        }
+              ? this.state.latestBlock
+              : contract.sources["*"],
+          abiEvents,
+        });
         continue;
       }
 
-      const topic0s = Object.keys(contract.events).map(
-        (eventName) =>
-          encodeEventTopics({
-            abi: contract.abi,
-            eventName,
-          })[0]
+      const abiEvents = getAbiEvents(
+        contract.abi,
+        Object.keys(contract.events)
       );
 
       const sources = Object.entries(contract.sources).reduce(
         (sources, [address, startBlock]) => {
           if (startBlock === "live") {
-            sources[address] = this.#state.latestBlock;
+            sources[address] = this.state.latestBlock;
           } else {
             sources[address] = startBlock;
           }
@@ -323,10 +344,9 @@ export class EvmDataFetcher<TContext extends {}> {
         {} as Record<string, bigint>
       );
 
-      this.#sources.specific.push({
+      this.sources.specific.push({
         sources,
-        abi: contract.abi,
-        topic0s,
+        abiEvents,
       });
     }
 
@@ -336,13 +356,13 @@ export class EvmDataFetcher<TContext extends {}> {
   loadBlocks() {
     let blocksLowestBlock = maxUint256;
 
-    for (const blockHandlerInfo of this.#blockHandlers) {
+    for (const blockHandlerInfo of this.blockHandlers) {
       const startBlock =
         blockHandlerInfo.startBlockHeight === "live"
-          ? this.#state.latestBlock
+          ? this.state.latestBlock
           : blockHandlerInfo.startBlockHeight;
 
-      this.#sources.blocks.push({
+      this.sources.blocks.push({
         interval: blockHandlerInfo.blockInterval,
         startBlock,
       });
@@ -363,3 +383,16 @@ export class EvmDataFetcher<TContext extends {}> {
     this.#errorHandler = callback;
   }
 }
+
+const getAbiEvents = (abi: Abi, eventNames: string[]) => {
+  return eventNames.map((eventName) => {
+    const abiEvent = getAbiItem({
+      abi,
+      name: eventName,
+    }) as AbiEvent;
+    if (!abiEvent) {
+      throw new Error(`Event ${eventName} not found in ABI`);
+    }
+    return abiEvent;
+  });
+};

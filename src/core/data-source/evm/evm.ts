@@ -11,6 +11,7 @@ import { EvmDataFetcher } from "./data-fetcher";
 import { EvmHandlerRunner } from "./handler-runner";
 import { createPublicClient, fallback, http } from "viem";
 import { DbProvider } from "../../db-provider";
+import { ViemDataProvider } from "./data-provider";
 
 export interface EvmDataSourceParams<TContext extends {}> {
   chain: string;
@@ -52,11 +53,12 @@ export class EvmDataSource<TContext extends {}> implements DataSource {
         multicall: true,
       },
     });
+    const dataProvider = new ViemDataProvider({ client });
     this.#dataFetcher = new EvmDataFetcher({
       dataBroker: this.#dataBroker,
       dataSourceManifest,
       logger,
-      client,
+      dataProvider,
       chain,
       dbProvider: dbProvider,
     });
