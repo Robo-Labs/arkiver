@@ -3,6 +3,7 @@ import { ArkiveManifest, Contract } from "../types/manifest";
 import { ArkiveRecord } from "../types/record";
 import { DbProvider } from "./db-provider";
 import { childSource } from "../tables/child-source";
+import { getChainObjFromChainName } from "../utils/chains";
 
 export interface ArkiverParams<TContext extends {}> {
   manifest: ArkiveManifest<TContext>;
@@ -10,7 +11,7 @@ export interface ArkiverParams<TContext extends {}> {
   record: ArkiveRecord;
   context: TContext;
   logger: Logger;
-  rpcUrls?: Record<string, string>;
+  rpcUrls?: Record<string, string[]>;
 }
 
 export class Arkiver<TContext extends {}> {
@@ -18,7 +19,7 @@ export class Arkiver<TContext extends {}> {
   #dbProvider: DbProvider;
   #record: ArkiveRecord;
   #context: TContext;
-  #rpcUrls?: Record<string, string>;
+  #rpcUrls?: Record<string, string[]>;
   #logger: Logger;
 
   constructor({
@@ -59,13 +60,13 @@ export class Arkiver<TContext extends {}> {
 
           const contract = mergeContracts(dataSource.contracts, childSources);
 
-          const rpcUrl = this.#rpcUrls?.[chain] ?? dataSource.options.rpcUrl;
+          const rpcUrls = this.#rpcUrls?.[chain] ?? dataSource.options.rpcUrls;
 
-          if (!rpcUrl) {
-            throw new Error(`No rpcUrl specified for chain ${chain}`);
+          if (rpcUrls.length === 0) {
+            throw new Error(`No rpcUrls specified for chain ${chain}`);
           }
 
-          dataSource.options.rpcUrl = rpcUrl;
+          dataSource.options.rpcUrls = rpcUrls;
 
           // const dataSource = new DataSource() // TODO @hazelnutcloud: create data source
           // dataSource.onSynced(() => {
@@ -78,8 +79,8 @@ export class Arkiver<TContext extends {}> {
   }
 }
 
-const mergeContracts = (
-  contracts: Record<string, Contract>,
+const mergeContracts = <TContext extends {}>(
+  contracts: Record<string, Contract<TContext>>,
   childSources: (typeof childSource.selectType)[]
 ) => {
   if (!contracts) {

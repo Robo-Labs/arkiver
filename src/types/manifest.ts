@@ -13,26 +13,26 @@ export interface ArkiveManifest<TContext extends {}> {
 }
 
 export interface DataSourceManifest<TContext extends {}> {
-  contracts: Record<string, Contract>;
-  blockHandlers: BlockHandlerInfo[];
+  contracts: Record<string, Contract<TContext>>;
+  blockHandlers: BlockHandlerInfo<TContext>[];
   options: ChainOptions;
 }
 
-export interface Contract {
+export interface Contract<TContext extends {}> {
   abi: Abi;
-  sources: Record<string, bigint>;
+  sources: Record<string, bigint | "live">;
   factorySources: Record<string, Record<string, string>>;
-  events: Record<string, EventHandler<Abi, string>>;
+  events: Record<string, EventHandler<Abi, string, TContext>>;
   id: string;
 }
 
 export interface ChainOptions {
   blockRange: bigint;
-  rpcUrl: string;
+  rpcUrls: string[];
 }
 
-export interface BlockHandlerInfo {
-  handler: BlockHandler;
+export interface BlockHandlerInfo<TContext extends {}> {
+  handler: BlockHandler<TContext>;
   startBlockHeight: bigint | "live";
   blockInterval: bigint;
   name: string;

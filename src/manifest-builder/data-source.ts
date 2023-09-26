@@ -1,13 +1,14 @@
 import { Abi, ExtractAbiEventNames } from "abitype";
 import {
   BlockHandler,
+  BlockHandlerInfo,
   ChainOptions,
   Chains,
   Contract,
   DataSourceManifest,
   EventHandler,
 } from "../types";
-import { Manifest } from "./manifest";
+import { BaseManifest } from "./base-manifest";
 import { getChainObjFromChainName } from "../utils/chains";
 import { MapAbiEventToArgsWithType } from "../types/abi";
 
@@ -16,25 +17,21 @@ export class DataSourceBuilder<
   TContext extends {}
 > {
   dataSource: DataSourceManifest<TContext>;
-  builder: Manifest<Chains>;
+  builder: BaseManifest<TContext, Chains>;
   chain: Chains;
 
-  constructor(
-    manifest: Manifest<Chains>,
-    chain: Chains,
-    options: Partial<ChainOptions> = {}
-  ) {
+  constructor(manifest: BaseManifest<TContext, Chains>, chain: Chains) {
     this.builder = manifest;
     this.chain = chain;
 
     const dataSource: DataSourceManifest<TContext> = this.builder.manifest
       .dataSources[chain] ?? {
       options: {
-        blockRange: options.blockRange ?? 1000n,
-        rpcUrl:
-          options.rpcUrl ??
-          getChainObjFromChainName(chain)?.rpcUrls.public.http[0] ??
-          "",
+        blockRange: 1000n,
+        rpcUrls:
+          (getChainObjFromChainName(chain)?.rpcUrls.public.http as
+            | string[]
+            | undefined) ?? [],
       },
       blockHandlers: [],
       contracts: {},
@@ -56,7 +53,12 @@ export class DataSourceBuilder<
     eventHandlers = {},
     factorySources = {},
     sources = {},
-  }: AddContractParams<TAbi, TContractName, TContracts>): DataSourceBuilder<
+  }: AddContractParams<
+    TAbi,
+    TContractName,
+    TContracts,
+    TContext
+  >): DataSourceBuilder<
     TContracts & { [key in TContractName]: TAbi },
     TContext
   > {
@@ -79,7 +81,7 @@ export class DataSourceBuilder<
     blockInterval,
     handler,
     startBlockHeight,
-  }: AddBlockHandlerParams) {
+  }: AddBlockHandlerParams<TContext>) {
     this.dataSource.blockHandlers.push({
       handler,
       startBlockHeight,
@@ -91,22 +93,23 @@ export class DataSourceBuilder<
   }
 }
 
-export interface AddBlockHandlerParams {
-  startBlockHeight: bigint | "live";
+export interface AddBlockHandlerParams<TContext extends {}> {
+  startBlockHeight: BlockHandlerInfo<TContext>["startBlockHeight"];
   blockInterval: bigint;
-  handler: BlockHandler;
+  handler: BlockHandler<TContext>;
 }
 
 export type AddContractParams<
   TAbi extends Abi,
   TContractName extends string,
-  TContracts extends Record<string, Abi>
+  TContracts extends Record<string, Abi>,
+  TContext extends {}
 > = {
   abi: TAbi;
   name: TContractName extends keyof TContracts
     ? `Contract with name '${TContractName}' already defined.`
     : TContractName;
-  sources?: Record<string, bigint>;
+  sources?: Contract<TContext>["sources"];
   factorySources?: {
     [KeyContractName in keyof TContracts]?: MapAbiEventToArgsWithType<
       TContracts[KeyContractName],
@@ -114,6 +117,10 @@ export type AddContractParams<
     >;
   };
   eventHandlers?: Partial<{
-    [eventName in ExtractAbiEventNames<TAbi>]: EventHandler<TAbi, eventName>;
+    [eventName in ExtractAbiEventNames<TAbi>]: EventHandler<
+      TAbi,
+      eventName,
+      TContext
+    >;
   }>;
 };

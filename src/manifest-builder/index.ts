@@ -1,4 +1,4 @@
-export { Manifest, manifestVersion } from "./manifest";
+export { BaseManifest, manifestVersion } from "./base-manifest";
 export {
   AddBlockHandlerParams,
   AddContractParams,

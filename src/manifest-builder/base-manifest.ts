@@ -3,10 +3,10 @@ import { DataSourceBuilder } from "./data-source";
 
 export const manifestVersion = "v1";
 
-export class Manifest<TContext extends {}, TChains extends Chains = ""> {
+export class BaseManifest<TContext extends {}, TChains extends Chains = ""> {
   manifest: ArkiveManifest<TContext>;
 
-  constructor(name: string, context: TContext) {
+  constructor(name: string) {
     if (name.search(/[^a-zA-Z0-9_-]/g) !== -1) {
       throw new Error(`Invalid name: ${name}`);
     }
@@ -23,11 +23,11 @@ export class Manifest<TContext extends {}, TChains extends Chains = ""> {
   chain<TChain extends Exclude<Chains, TChains>>(
     chain: TChain,
     builderFn: (builder: DataSourceBuilder<{}, TContext>) => void
-  ): Manifest<TChains | TChain> {
+  ): BaseManifest<TContext, TChains | TChain> {
     builderFn(new DataSourceBuilder(this, chain));
-    if (!this.manifest.dataSources[chain]?.options.rpcUrl) {
-      throw new Error(`RPC URL is required for chain ${chain}`);
+    if (this.manifest.dataSources[chain]?.options.rpcUrls.length === 0) {
+      throw new Error(`At least one RPC URL is required for chain ${chain}`);
     }
-    return this as Manifest<TChains | TChain>;
+    return this;
   }
 }

@@ -9,12 +9,15 @@ import { DataSource } from "../data-source";
 import { EvmDataBroker } from "./data-broker";
 import { EvmDataFetcher } from "./data-fetcher";
 import { EvmHandlerRunner } from "./handler-runner";
+import { createPublicClient, fallback, http } from "viem";
+import { DbProvider } from "../../db-provider";
 
 export interface EvmDataSourceParams<TContext extends {}> {
   chain: string;
   record: ArkiveRecord;
   dataSourceManifest: DataSourceManifest<TContext>;
   logger: Logger;
+  dbProvider: DbProvider;
 }
 
 export class EvmDataSource<TContext extends {}> implements DataSource {
@@ -25,7 +28,6 @@ export class EvmDataSource<TContext extends {}> implements DataSource {
   #dataFetcher: EvmDataFetcher<TContext>;
   #handlerRunner: EvmHandlerRunner;
   #logger: Logger;
-  #onError?: (err: unknown) => void;
   #onSynced?: () => void;
 
   constructor({
@@ -33,6 +35,7 @@ export class EvmDataSource<TContext extends {}> implements DataSource {
     record,
     dataSourceManifest,
     logger,
+    dbProvider,
   }: EvmDataSourceParams<TContext>) {
     this.#chain = chain;
     this.#record = record;
@@ -40,11 +43,24 @@ export class EvmDataSource<TContext extends {}> implements DataSource {
     this.#logger = logger;
 
     this.#dataBroker = new EvmDataBroker();
+
+    const client = createPublicClient({
+      transport: fallback(
+        this.#dataSourceManifest.options.rpcUrls.map((rpcUrl) => http(rpcUrl))
+      ),
+      batch: {
+        multicall: true,
+      },
+    });
     this.#dataFetcher = new EvmDataFetcher({
       dataBroker: this.#dataBroker,
       dataSourceManifest,
       logger,
+      client,
+      chain,
+      dbProvider: dbProvider,
     });
+
     this.#handlerRunner = new EvmHandlerRunner({
       dataBroker: this.#dataBroker,
     });
@@ -61,7 +77,8 @@ export class EvmDataSource<TContext extends {}> implements DataSource {
   }
 
   onError(callback: (err: unknown) => void): void {
-    this.#onError = callback;
+    // propage error handler downwards instead of propagating error upwards
+    this.#dataFetcher.onError(callback);
   }
 
   onSynced(callback: () => void): void {

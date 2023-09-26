@@ -24,5 +24,3 @@ export type EventHandlerContext<
   getTimestampMs: () => Promise<number>;
   logger: Logger;
 } & ExtendedContext;
-
-// db: unknown; // TODO @hazelnutcloud: add drizzle db to extended context
