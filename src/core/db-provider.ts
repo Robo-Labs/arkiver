@@ -29,12 +29,12 @@ export interface DbProvider {
 
 export interface PgDrizzleProviderParams {
   db: PostgresJsDatabase<typeof arkiveBaseSchema>;
-  logger: Logger;
+  logger?: Logger;
 }
 
 export class PgDrizzleProvider implements DbProvider {
   #db: PostgresJsDatabase<typeof arkiveBaseSchema>;
-  #logger: Logger;
+  #logger?: Logger;
 
   constructor({ db, logger }: PgDrizzleProviderParams) {
     this.#db = db;
@@ -42,13 +42,13 @@ export class PgDrizzleProvider implements DbProvider {
   }
 
   async getChildSource() {
-    this.#logger.debug({ event: "dbProvider.getChildSource" });
+    this.#logger?.debug({ event: "dbProvider.getChildSource" });
 
     return await this.#db.query.child_source.findMany();
   }
 
   async getHighestProcessedBlock(chain: string) {
-    this.#logger.debug({
+    this.#logger?.debug({
       event: "dbProvider.getHighestProcessedBlock",
       context: { chain },
     });
@@ -60,7 +60,7 @@ export class PgDrizzleProvider implements DbProvider {
   }
 
   async incrementValue({ chain, value, type }: IncrementValueParams) {
-    this.#logger.debug({
+    this.#logger?.debug({
       event: "dbProvider.incrementValue",
       context: { chain, value, type },
     });
@@ -74,7 +74,7 @@ export class PgDrizzleProvider implements DbProvider {
   }
 
   async updateChainBlock({ chain, blockHeight, type }: UpdateChainBlockParams) {
-    this.#logger.debug({
+    this.#logger?.debug({
       event: "dbProvider.updateChainBlock",
       context: { chain, blockHeight, type },
     });

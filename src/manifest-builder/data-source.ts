@@ -99,12 +99,12 @@ export interface AddBlockHandlerParams<TContext extends {}> {
   handler: BlockHandler<TContext>;
 }
 
-export type AddContractParams<
+export interface AddContractParams<
   TAbi extends Abi,
   TContractName extends string,
   TContracts extends Record<string, Abi>,
   TContext extends {}
-> = {
+> {
   abi: TAbi;
   name: TContractName extends keyof TContracts
     ? `Contract with name '${TContractName}' already defined.`
@@ -123,4 +123,4 @@ export type AddContractParams<
       TContext
     >;
   }>;
-};
+}

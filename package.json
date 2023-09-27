@@ -13,8 +13,10 @@
   },
   "dependencies": {
     "abitype": "^0.9.8",
+    "async-mutex": "^0.4.0",
     "drizzle-orm": "^0.28.6",
     "elysia": "^0.7.6",
+    "eventemitter3": "^5.0.1",
     "lru-cache": "^10.0.1",
     "pg": "^8.11.3",
     "pino": "^8.15.1",

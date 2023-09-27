@@ -1,9 +1,9 @@
 import { ViemDataProvider } from "./data-provider";
-import { PublicClient } from "viem";
 import { describe, beforeEach, jest, expect, it } from "bun:test";
+import { ArkiveClient } from "../../../types/client";
 
 describe("ViemDataProvider", () => {
-  let client: PublicClient;
+  let client: ArkiveClient;
   let dataProvider: ViemDataProvider;
 
   beforeEach(() => {
@@ -11,7 +11,7 @@ describe("ViemDataProvider", () => {
       getLogs: jest.fn(),
       getBlock: jest.fn(),
       getBlockNumber: jest.fn(),
-    } as unknown as PublicClient;
+    } as unknown as ArkiveClient;
 
     dataProvider = new ViemDataProvider({ client });
   });

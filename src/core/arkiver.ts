@@ -4,13 +4,14 @@ import { ArkiveRecord } from "../types/record";
 import { DbProvider } from "./db-provider";
 import { childSource } from "../tables/child-source";
 import { getChainObjFromChainName } from "../utils/chains";
+import { EvmDataSource } from "./data-source/evm/evm";
 
 export interface ArkiverParams<TContext extends {}> {
   manifest: ArkiveManifest<TContext>;
   dbProvider: DbProvider;
   record: ArkiveRecord;
   context: TContext;
-  logger: Logger;
+  logger?: Logger;
   rpcUrls?: Record<string, string[]>;
 }
 
@@ -19,8 +20,9 @@ export class Arkiver<TContext extends {}> {
   #dbProvider: DbProvider;
   #record: ArkiveRecord;
   #context: TContext;
+  #dataSources: EvmDataSource<TContext>[] = [];
   #rpcUrls?: Record<string, string[]>;
-  #logger: Logger;
+  #logger?: Logger;
 
   constructor({
     dbProvider,
@@ -39,43 +41,67 @@ export class Arkiver<TContext extends {}> {
   }
 
   async start() {
-    this.#logger.info({ event: "arkiver.start" });
+    this.#logger?.info({ event: "arkiver.start" });
     await this.#initDataSources();
   }
 
   async #initDataSources() {
-    this.#logger.info({ event: "arkiver.initDataSources" });
+    this.#logger?.info({ event: "arkiver.initDataSources" });
 
     const childSources = await this.#dbProvider.getChildSource();
 
     await Promise.all(
       Object.entries(this.#manifest.dataSources).map(
-        async ([chain, dataSource]) => {
-          if (!dataSource) return;
+        async ([chain, dataSourceManifest]) => {
+          if (!dataSourceManifest) return;
 
-          this.#logger.info({
+          this.#logger?.info({
             event: "arkiver.initDataSources",
             context: { chain },
           });
 
-          const contract = mergeContracts(dataSource.contracts, childSources);
+          const contract = mergeContracts(
+            dataSourceManifest.contracts,
+            childSources
+          );
 
-          const rpcUrls = this.#rpcUrls?.[chain] ?? dataSource.options.rpcUrls;
+          const rpcUrls =
+            this.#rpcUrls?.[chain] ?? dataSourceManifest.options.rpcUrls;
 
           if (rpcUrls.length === 0) {
             throw new Error(`No rpcUrls specified for chain ${chain}`);
           }
 
-          dataSource.options.rpcUrls = rpcUrls;
+          dataSourceManifest.options.rpcUrls = rpcUrls;
 
-          // const dataSource = new DataSource() // TODO @hazelnutcloud: create data source
-          // dataSource.onSynced(() => {
-          // dataSource.onError((err) => {
+          const dataSource = new EvmDataSource({
+            chain,
+            context: this.#context,
+            dataSourceManifest,
+            dbProvider: this.#dbProvider,
+            record: this.#record,
+            logger: this.#logger,
+          });
 
-          // await dataSource.start()
+          dataSource.on("error", (error) => {
+            this.#logger?.error({
+              event: "arkiver.initDataSources",
+              context: { chain },
+              error,
+            });
+            this.stop();
+          });
+
+          this.#dataSources.push(dataSource);
+
+          await dataSource.start();
         }
       )
     );
+  }
+
+  stop() {
+    this.#dataSources.forEach((dataSource) => dataSource.stop());
   }
 }
 

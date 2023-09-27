@@ -1,7 +1,8 @@
-import { Abi, AbiEvent, ExtractAbiEvent, ExtractAbiEventNames } from "abitype";
+import { Abi, ExtractAbiEvent, ExtractAbiEventNames } from "abitype";
 import { GetContractReturnType, Log, PublicClient } from "viem";
 import { Store } from "../utils/store";
 import { Logger } from "pino";
+import { ArkiveClient } from "./client";
 
 export type EventHandler<
   TAbi extends Abi,
@@ -17,10 +18,8 @@ export type EventHandlerContext<
   ExtendedContext = {}
 > = {
   event: Log<bigint, number, false, ExtractAbiEvent<TAbi, TEventName>, true>;
-  eventName: TEventName;
-  client: PublicClient;
+  client: ArkiveClient;
   store: Store;
   contract: GetContractReturnType<TAbi, PublicClient>;
-  getTimestampMs: () => Promise<number>;
   logger: Logger;
 } & ExtendedContext;

@@ -1,5 +1,11 @@
 import { AbiEvent } from "abitype";
-import { Abi, GetBlockReturnType, GetLogsReturnType, PublicClient } from "viem";
+import {
+  GetBlockReturnType,
+  GetLogsReturnType,
+  WatchBlockNumberReturnType,
+} from "viem";
+import { ArkiveClient } from "../../../types/client";
+import { Logger } from "pino";
 
 export interface EvmDataProvider {
   fetchSpecificLogs({
@@ -36,17 +42,25 @@ export interface EvmDataProvider {
   }): Promise<GetBlockReturnType[]>;
 
   fetchLatestBlock(): Promise<bigint>;
+
+  onBlock(
+    handler: (blockNumber: bigint) => void,
+    errorHandler: (error: Error) => void
+  ): WatchBlockNumberReturnType;
 }
 
 export interface EvmDataProviderParams {
-  client: PublicClient;
+  client: ArkiveClient;
+  logger?: Logger;
 }
 
 export class ViemDataProvider implements EvmDataProvider {
-  #client: PublicClient;
+  #client: ArkiveClient;
+  #logger?: Logger;
 
-  constructor({ client }: EvmDataProviderParams) {
+  constructor({ client, logger }: EvmDataProviderParams) {
     this.#client = client;
+    this.#logger = logger;
   }
 
   async fetchSpecificLogs({
@@ -88,6 +102,11 @@ export class ViemDataProvider implements EvmDataProvider {
       strict: true,
     });
 
+    this.#logger?.info({
+      event: "ViemDataProvider.fetchSpecificLogs",
+      context: { startBlock, endBlock, logs: logs.length },
+    });
+
     return logs;
   }
 
@@ -114,6 +133,11 @@ export class ViemDataProvider implements EvmDataProvider {
       toBlock: endBlock,
       events,
       strict: true,
+    });
+
+    this.#logger?.debug({
+      event: "ViemDataProvider.fetchWildcardLogs",
+      context: { startBlock, endBlock, logs: logs.length },
     });
 
     return logs;
@@ -153,13 +177,33 @@ export class ViemDataProvider implements EvmDataProvider {
       }
     }
 
+    if (blockNumbers.size === 0) return [];
+
     const blocks = await Promise.all(
       Array.from(blockNumbers).map(async (blockNumber) => {
         return await this.#client.getBlock({ blockNumber });
       })
     );
 
+    this.#logger?.debug({
+      event: "ViemDataProvider.fetchBlocks",
+      context: { startBlock, endBlock, blocks: blocks.length },
+    });
+
     return blocks;
+  }
+
+  onBlock(
+    handler: (blockNumber: bigint) => void,
+    errorHandler: (error: Error) => void
+  ) {
+    const unwatch = this.#client.watchBlockNumber({
+      emitOnBegin: true,
+      emitMissed: true,
+      onBlockNumber: handler,
+      onError: errorHandler,
+    });
+    return unwatch;
   }
 
   async fetchLatestBlock() {

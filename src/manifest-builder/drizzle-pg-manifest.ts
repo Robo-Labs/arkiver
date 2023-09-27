@@ -1,5 +1,5 @@
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { BaseManifest } from ".";
+import { BaseManifest } from "./base-manifest";
 
 export class Manifest<
   TSchema extends Record<string, unknown>
