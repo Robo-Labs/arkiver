@@ -23,3 +23,9 @@ $ bunx push:pg --config ./drizzle.config.ts
 ```bash
 $ ARKIVE_NAME=example bun run index.ts
 ```
+
+5. Run drizzle studio:
+   
+```bash
+$ bunx drizzle-kit studio --config ./drizzle.config.ts
+```
