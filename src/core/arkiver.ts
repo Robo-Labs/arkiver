@@ -118,7 +118,7 @@ const mergeContracts = <TContext extends {}>(
   }
 
   for (const spawnedSource of childSources) {
-    const contract = contracts[spawnedSource.id];
+    const contract = contracts[spawnedSource.contract];
     if (!contract) {
       continue;
     }

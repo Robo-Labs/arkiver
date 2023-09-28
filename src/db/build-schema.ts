@@ -7,9 +7,7 @@ import {
 } from "./types";
 import { Many, One, relations as drizzleRelations } from "drizzle-orm";
 
-export const buildSchema = <
-  TTables extends ArkiveTable<string, Record<string, ArkiveColumns>>
->(
+export const buildSchema = <TTables extends ArkiveTable<any, any>>(
   tables: TTables[]
 ): BuildSchema<TTables> => {
   const schema: Record<string, any> = {};

@@ -17,6 +17,7 @@ export interface EvmDataFetcherParams {
   maxRetries?: number;
   retryDelayMs?: number;
   logger?: Logger;
+  fetchDelayMs?: number;
 }
 
 export class EvmDataFetcher extends EventEmitter {
@@ -29,6 +30,7 @@ export class EvmDataFetcher extends EventEmitter {
     waitNewBlockMs: number;
     retryDelayMs: number;
     blockRange: bigint;
+    fetchDelayMs: number;
   };
   unwatch?: WatchBlockNumberReturnType;
   #logger?: Logger;
@@ -43,6 +45,7 @@ export class EvmDataFetcher extends EventEmitter {
     waitNewBlockMs = 1000,
     maxRetries = 5,
     retryDelayMs = 500,
+    fetchDelayMs = 500,
   }: EvmDataFetcherParams) {
     super();
     this.#loader = loader;
@@ -54,6 +57,7 @@ export class EvmDataFetcher extends EventEmitter {
       waitNewBlockMs,
       retryDelayMs,
       blockRange,
+      fetchDelayMs,
     };
     this.#latestBlock = latestBlock;
   }
@@ -63,6 +67,7 @@ export class EvmDataFetcher extends EventEmitter {
       event: "evmDataFetcher.start",
       context: {
         config: this.#config,
+        startBlock,
       },
     });
 
@@ -91,6 +96,9 @@ export class EvmDataFetcher extends EventEmitter {
             );
 
             await this.#processBlock(nextBlock, endBlock);
+            await new Promise((resolve) =>
+              setTimeout(resolve, this.#config.fetchDelayMs)
+            );
 
             taskIndex++;
           }
@@ -131,11 +139,6 @@ export class EvmDataFetcher extends EventEmitter {
   }
 
   async #processBlock(startBlock: bigint, endBlock: bigint) {
-    this.#logger?.debug({
-      event: "evmDataFetcher.#processBlock",
-      context: { startBlock, endBlock },
-    });
-
     try {
       const res = await retry({
         callback: () =>
@@ -158,6 +161,16 @@ export class EvmDataFetcher extends EventEmitter {
           ]),
         maxRetries: this.#config.maxRetries,
         retryDelayMs: this.#config.retryDelayMs,
+      });
+
+      this.#logger?.debug({
+        event: "evmDataFetcher.#processBlock",
+        context: {
+          startBlock,
+          endBlock,
+          logs: res[0].length + res[1].length,
+          blocks: res[2].length,
+        },
       });
 
       this.emit("data", {

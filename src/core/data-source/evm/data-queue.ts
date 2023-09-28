@@ -44,18 +44,23 @@ export class EvmDataQueue extends EventEmitter {
 
   async #flush() {
     // make sure only one flush is running at a time
-    const release = await this.#flushLock.acquire();
+    await this.#flushLock.runExclusive(async () => {
+      let buffered = this.#buffer.get(this.#blockCursor);
 
-    let buffered = this.#buffer.get(this.#blockCursor);
-
-    while (buffered !== undefined) {
-      this.emit("data", buffered.data);
-      this.#buffer.delete(this.#blockCursor);
-      this.#blockCursor = buffered.endBlock + 1n;
-      buffered = this.#buffer.get(this.#blockCursor);
-    }
-
-    release();
+      while (buffered !== undefined) {
+        this.#logger?.debug({
+          event: "evmDataQueue.flush",
+          context: {
+            startBlock: this.#blockCursor,
+            endBlock: buffered.endBlock,
+          },
+        });
+        this.emit("data", buffered.data);
+        this.#buffer.delete(this.#blockCursor);
+        this.#blockCursor = buffered.endBlock + 1n;
+        buffered = this.#buffer.get(this.#blockCursor);
+      }
+    });
   }
 
   initializeBlock(startBlock: bigint) {

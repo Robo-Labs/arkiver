@@ -54,30 +54,32 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
   }
 
   async processData({ blocks, logs }: Data) {
-    const release = await this.#processLock.acquire();
+    await this.#processLock.runExclusive(async () => {
+      this.#logger?.debug({
+        event: "evmHandlerRunner.processData",
+        context: { blocks: blocks.length, logs: logs.length },
+      });
+      const merged: (
+        | { number: bigint; blockNumber?: never }
+        | { number?: never; blockNumber: bigint }
+      )[] = [...blocks, ...logs];
+      const sorted = merged.sort((a, b) => {
+        const aBlock = a.blockNumber !== undefined ? a.blockNumber : a.number;
+        const bBlock = b.blockNumber !== undefined ? b.blockNumber : b.number;
 
-    const merged: (
-      | { number: bigint; blockNumber?: never }
-      | { number?: never; blockNumber: bigint }
-    )[] = [...blocks, ...logs];
-    const sorted = merged.sort((a, b) => {
-      const aBlock = a.blockNumber !== undefined ? a.blockNumber : a.number;
-      const bBlock = b.blockNumber !== undefined ? b.blockNumber : b.number;
+        return Number(aBlock - bBlock);
+      });
 
-      return Number(aBlock - bBlock);
-    });
-
-    for (const item of sorted) {
-      if (item.blockNumber !== undefined) {
-        // log
-        await this.#processLog(item as Data["logs"][number]);
-      } else {
-        // block
-        await this.#processBlock(item as Data["blocks"][number]);
+      for (const item of sorted) {
+        if (item.blockNumber !== undefined) {
+          // log
+          await this.#processLog(item as Data["logs"][number]);
+        } else {
+          // block
+          await this.#processBlock(item as Data["blocks"][number]);
+        }
       }
-    }
-
-    release();
+    });
   }
 
   async #processLog(log: Data["logs"][number]) {
@@ -86,13 +88,15 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
 
     let handler: EventHandler<Abi, string, TContext>;
     let abi: Abi;
+    let contractId: string;
 
     const specific = this.#loader.addressTopicHandlerMap.get(
-      `${address}-${topic0}`
+      `${address}-${topic0}`.toLocaleLowerCase()
     );
     if (specific !== undefined) {
       handler = specific.handler;
       abi = specific.abi;
+      contractId = specific.contractId;
     } else {
       if (!topic0) {
         this.#logger?.warn({
@@ -103,7 +107,9 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
         return;
       }
 
-      const wildcard = this.#loader.addressTopicHandlerMap.get(topic0);
+      const wildcard = this.#loader.addressTopicHandlerMap.get(
+        topic0.toLowerCase()
+      );
       if (wildcard === undefined) {
         this.#logger?.warn({
           source: "evmHandlerRunner.#processLog",
@@ -115,6 +121,7 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
 
       handler = wildcard.handler;
       abi = wildcard.abi;
+      contractId = wildcard.contractId;
     }
 
     const contract = getContract({
@@ -122,7 +129,6 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
       address,
       publicClient: this.#client,
     });
-
     try {
       await retry({
         callback: async () =>
@@ -131,7 +137,10 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
             client: this.#client,
             contract,
             event: log,
-            logger: this.#logger!,
+            logger: this.#logger!.child({
+              event: log.eventName,
+              contract: contractId,
+            }),
             store: this.#store,
           }),
         maxRetries: this.#config.maxRetries,
@@ -166,7 +175,9 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
                 ...this.#context,
                 block,
                 client: this.#client,
-                logger: this.#logger!,
+                logger: this.#logger!.child({
+                  blockHandler: blockSource.handler.name,
+                }),
                 store: this.#store,
               })
             )

@@ -18,9 +18,7 @@ export const createTable = <
   name: TName,
   schema: TArkiveTableSchema
 ): ArkiveTable<TName, TArkiveTableSchema> => {
-  const columns: Record<string, PgColumnBuilderBase> = {
-    id: serial("id").primaryKey(),
-  };
+  const columns: Record<string, PgColumnBuilderBase> = {};
   // field name -> relation (one or many -> referenced table name)
   const relations: Record<string, Referral> = {};
 
@@ -43,12 +41,20 @@ export const createTable = <
         break;
       }
       case /^@/.test(value): {
+        const [referred, type] = value
+          .replace(/^@/, "")
+          .replace(/\?$/, "")
+          .split(":");
         relation = {
-          referred: value.replace(/^@/, "").replace(/\?$/, ""),
+          referred: referred,
           type: "one",
         };
         newKey = `${key}Id`;
-        column = integer(newKey);
+        if (type === "string") {
+          column = text(newKey);
+        } else {
+          column = integer(newKey);
+        }
         break;
       }
       case /string/.test(value): {
@@ -81,11 +87,16 @@ export const createTable = <
       if (!/\?$/.test(value)) {
         column = (column as any).notNull();
       }
+      if (key === "id") {
+        column = (column as any).primaryKey();
+      }
 
       columns[newKey] = column!;
     }
     if (relation) relations[key] = relation;
   }
+
+  if (!columns.id) columns.id = serial("id").primaryKey();
 
   return {
     _: {
@@ -93,6 +104,7 @@ export const createTable = <
       name,
       relations,
     },
+    ref: `${name}:${schema.id ?? "id"}` as any,
     table: pgTable(name, columns) as any,
     insertType: undefined as any,
     selectType: undefined as any,

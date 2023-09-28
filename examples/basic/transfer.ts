@@ -10,6 +10,10 @@ export const onTransfer: EventHandler<
   "Transfer",
   { db: PostgresJsDatabase<typeof schema> }
 > = async ({ event, contract, logger, db, store }) => {
+  logger.info(
+    `Transfer: ${event.args.from} -> ${event.args.to} ${event.args.value}`
+  );
+
   const { from, to, value } = event.args;
 
   const address = event.address;
@@ -25,23 +29,25 @@ export const onTransfer: EventHandler<
     db
       .insert(balance)
       .values({
+        id: `${from}-${address}`,
         address: from,
         token: address,
         amount: -parsedValue,
       })
       .onConflictDoUpdate({
-        target: [balance.address, balance.token],
+        target: [balance.id],
         set: { amount: sql`${balance.amount} - ${parsedValue}` },
       }),
     db
       .insert(balance)
       .values({
+        id: `${to}-${address}`,
         address: to,
         token: address,
         amount: parsedValue,
       })
       .onConflictDoUpdate({
-        target: [balance.address, balance.token],
+        target: [balance.id],
         set: { amount: sql`${balance.amount} + ${parsedValue}` },
       }),
   ]);

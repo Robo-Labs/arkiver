@@ -4,7 +4,6 @@ import {
   PgCustomColumnBuilder,
   PgDoublePrecisionBuilderInitial,
   PgIntegerBuilder,
-  PgNumericBuilderInitial,
   PgSerialBuilderInitial,
   PgTableWithColumns,
   PgTextBuilder,
@@ -26,7 +25,7 @@ export type Nullify<T extends string> = `${T}?`;
 export type Arrayify<T extends string> = `${T}[]`;
 export type ApplyModifiers<T extends string> = Nullify<T> | Arrayify<T> | T;
 
-export type RefBase = `@${string}`;
+export type RefBase = `@${string}:${"string" | "id"}`;
 export type Ref = Nullify<RefBase> | RefBase;
 
 export type BackRef = `[]@${string}`;
@@ -36,7 +35,9 @@ export type Scalar = Arrayify<ScalarBase> | Nullify<ScalarBase> | ScalarBase;
 
 export type ArkiveColumns = Scalar | Ref | BackRef;
 
-export type ArkiveTableSchema = Record<string, ArkiveColumns> & { id?: never };
+export type ArkiveTableSchema = Record<string, ArkiveColumns> & {
+  id?: "string";
+};
 
 export type ScalarToDrizzleColumn<
   TScalar extends Scalar | Ref,
@@ -51,8 +52,10 @@ export type ScalarToDrizzleColumn<
   ? ApplyChecks<TScalar, BigIntColumnBuilder<TName>>
   : TScalar extends ApplyModifiers<"date">
   ? ApplyChecks<TScalar, DateColumnBuilder<TName>>
+  : TScalar extends ApplyModifiers<"id">
+  ? NotNull<PgSerialBuilderInitial<TName>>
   : TScalar extends Ref
-  ? ApplyChecks<TScalar, RefColumnBuilder<TName>>
+  ? ApplyChecks<TScalar, RefColumnBuilder<TName, TScalar>>
   : never;
 
 export type NotNullifyColumn<TType extends ColumnBuilderBase> = NotNull<TType>;
@@ -78,25 +81,27 @@ export type CheckArray<TName extends string> = TName extends `${string}[]`
   ? true
   : false;
 
+export type CheckId<TName extends string> = TName extends `id` ? true : false;
+
 export type ApplyChecks<
   TScalar extends string,
   TColumn extends ColumnBuilderBase
-> = CheckArray<TScalar> extends true
+> = CheckId<TScalar> extends true
+  ? NotNullifyColumn<TColumn>
+  : CheckArray<TScalar> extends true
   ? ArrayifyColumn<TColumn>
   : CheckNull<TScalar> extends false
   ? NotNullifyColumn<TColumn>
   : TColumn;
 
-export type StringColumnBuilder<TName extends string> =
-  | PgTextBuilder<{
-      name: TName;
-      dataType: "string";
-      columnType: "PgText";
-      data: string;
-      enumValues: [string, ...string[]];
-      driverParam: string;
-    }>
-  | never;
+export type StringColumnBuilder<TName extends string> = PgTextBuilder<{
+  name: TName;
+  dataType: "string";
+  columnType: "PgText";
+  data: string;
+  enumValues: [string, ...string[]];
+  driverParam: string;
+}>;
 
 export type NumberColumnBuilder<TName extends string> =
   PgDoublePrecisionBuilderInitial<TName>;
@@ -116,14 +121,21 @@ export type BigIntColumnBuilder<TName extends string> = PgCustomColumnBuilder<{
 export type DateColumnBuilder<TName extends string> =
   PgTimestampBuilderInitial<TName>;
 
-export type RefColumnBuilder<TName extends string> = PgIntegerBuilder<{
-  name: `${TName}Id`;
-  dataType: "number";
-  columnType: "PgInteger";
-  data: number;
-  driverParam: number | string;
-  enumValues: undefined;
-}>;
+export type RefColumnBuilder<
+  TName extends string,
+  TRef extends Ref
+> = TRef extends `${string}:${infer type}`
+  ? type extends `string${string}`
+    ? StringColumnBuilder<TName>
+    : PgIntegerBuilder<{
+        name: `${TName}Id`;
+        dataType: "number";
+        columnType: "PgInteger";
+        data: number;
+        driverParam: number | string;
+        enumValues: undefined;
+      }>
+  : never;
 
 // -- Tables --
 
@@ -140,6 +152,9 @@ export type ArkiveTable<
     name: TName;
     relations: Record<string, Referral>;
   };
+  ref: `${TName}:${TArkiveTableSchema["id"] extends string
+    ? TArkiveTableSchema["id"]
+    : "id"}`;
   table: ArkiveSchemaToDrizzleTable<TName, TArkiveTableSchema>;
   insertType: ArkiveSchemaToDrizzleTable<
     TName,
@@ -165,10 +180,16 @@ export type ArkiveSchemaToDrizzleTable<
       columns: BuildColumns<
         TName,
         ArkiveScalarColumnsToDrizzleColumns<
-          PickByValue<RemapArkiveSchemaKeys<TArkiveSchema>, Scalar | Ref>
-        > & {
-          id: NotNull<PgSerialBuilderInitial<"id">>;
-        },
+          PickByValue<
+            RemapArkiveSchemaKeys<
+              TArkiveSchema &
+                (TArkiveSchema["id"] extends "string"
+                  ? TArkiveSchema
+                  : { id: "id" })
+            >,
+            Scalar | Ref | "id"
+          >
+        >,
         "pg"
       >;
     }>

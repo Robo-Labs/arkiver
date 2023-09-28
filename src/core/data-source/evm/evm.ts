@@ -65,6 +65,7 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
     const loader = new ManifestLoader({
       dataSourceManifest: this.#dataSourceManifest,
       latestBlock,
+      logger: this.#logger,
     });
 
     // determine startblock
@@ -89,6 +90,7 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
       client,
       context: this.#context,
       loader,
+      logger: this.#logger,
     });
 
     // connect components

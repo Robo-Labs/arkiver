@@ -30,6 +30,12 @@ interface Sources<TContext extends {}> {
   }[];
 }
 
+interface AddressTopicInfo<TContext extends {}> {
+  abi: Abi;
+  handler: EventHandler<Abi, string, TContext>;
+  contractId: string;
+}
+
 export class ManifestLoader<TContext extends {}> {
   #contracts: Record<string, Contract<TContext>>;
   #blockHandlers: BlockHandlerInfo<TContext>[];
@@ -40,7 +46,7 @@ export class ManifestLoader<TContext extends {}> {
   sources: Sources<TContext>;
   addressTopicHandlerMap: Map<
     string, // specific: address-topic0, wildcard: topic0
-    { abi: Abi; handler: EventHandler<Abi, string, TContext> }
+    AddressTopicInfo<TContext>
   >;
 
   constructor({
@@ -78,7 +84,7 @@ export class ManifestLoader<TContext extends {}> {
     };
     const addressTopicHandlerMap = new Map<
       string,
-      { abi: Abi; handler: EventHandler<Abi, string, TContext> }
+      AddressTopicInfo<TContext>
     >();
 
     for (const contract of Object.values(this.#contracts)) {
@@ -114,7 +120,7 @@ export class ManifestLoader<TContext extends {}> {
             abi: [abiEvent],
             eventName: abiEvent.name,
           })[0];
-          const key = topic0;
+          const key = topic0.toLowerCase();
           if (addressTopicHandlerMap.has(key)) {
             this.#logger?.warn({
               source: "ManifestLoader.loadContracts",
@@ -130,6 +136,7 @@ export class ManifestLoader<TContext extends {}> {
           addressTopicHandlerMap.set(key, {
             abi: contract.abi,
             handler: contract.events[abiEvent.name],
+            contractId: contract.id,
           });
         }
         continue;
@@ -158,7 +165,7 @@ export class ManifestLoader<TContext extends {}> {
           eventName: abiEvent.name,
         })[0];
         for (const address in sources) {
-          const key = `${address}-${topic0}`;
+          const key = `${address}-${topic0}`.toLowerCase();
           if (addressTopicHandlerMap.has(key)) {
             this.#logger?.warn({
               source: "ManifestLoader.loadContracts",
@@ -175,6 +182,7 @@ export class ManifestLoader<TContext extends {}> {
           addressTopicHandlerMap.set(key, {
             abi: contract.abi,
             handler: contract.events[abiEvent.name],
+            contractId: contract.id,
           });
         }
       }

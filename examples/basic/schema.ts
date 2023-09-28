@@ -5,6 +5,7 @@ import { chainMetadata } from "../../src/tables/chain-metadata";
 import { childSource } from "../../src/tables/child-source";
 
 export const _balance = createTable("balance", {
+  id: "string",
   address: "string",
   token: "string",
   amount: "number",

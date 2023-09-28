@@ -9,19 +9,24 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import { schema } from "./schema";
 
 const manifest = new Manifest(schema).chain("mainnet", (chain) => {
-  chain.contract({
-    name: "ERC20",
-    abi: ERC20_ABI,
-    sources: { "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": 16987011n },
-    eventHandlers: { Transfer: onTransfer },
-  });
+  chain
+    .setOptions({
+      rpcUrls: ["https://rpc.ankr.com/eth", "https://eth.llamarpc.com"],
+      blockRange: 100n,
+    })
+    .contract({
+      name: "ERC20",
+      abi: ERC20_ABI,
+      sources: { "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": 18230000n },
+      eventHandlers: { Transfer: onTransfer },
+    });
 });
 
 const logger = pino({
   transport: {
     target: "pino-pretty",
   },
-  // level: "debug",
+  level: "debug",
 });
 
 const client = postgres("postgres://postgres:postgres@localhost:5432/postgres");
