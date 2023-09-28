@@ -93,6 +93,8 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
       logger: this.#logger,
     });
 
+    // TODO: listen for errors on dataFetcher and handle them
+
     // connect components
     dataFetcher.on("data", (data) => queue.push(data));
     queue.on("data", (data) => handlerRunner.processData(data));
