@@ -1,5 +1,7 @@
-export { BlockHandler, BlockHandlerContext } from "./block-handler.ts";
-export { EventHandler, EventHandlerContext } from "./event-handler.ts";
+export { MapAbiEventToArgsWithType } from "./abi";
+export { ArkiveClient, GetBlockTimestampParameters } from "./client";
+export { BlockHandler, BlockHandlerContext } from "./block-handler";
+export { EventHandler, EventHandlerContext } from "./event-handler";
 export {
   ArkiveManifest,
   ChainOptions,
@@ -7,5 +9,5 @@ export {
   Contract,
   BlockHandlerInfo,
   DataSourceManifest,
-} from "./manifest.ts";
-export { ArkiveRecord, DeploymentRecord } from "./record.ts";
+} from "./manifest";
+export { ArkiveRecord, DeploymentRecord } from "./record";

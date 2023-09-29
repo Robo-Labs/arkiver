@@ -1,4 +1,7 @@
 {
+	"include": [
+		"src/**/*"
+	],
   "compilerOptions": {
     "lib": ["ESNext"],
     "module": "esnext",
@@ -6,7 +9,7 @@
     "moduleResolution": "bundler",
     "moduleDetection": "force",
     "allowImportingTsExtensions": true,
-    "noEmit": true,
+		"emitDeclarationOnly": true,
     "composite": true,
     "strict": true,
     "downlevelIteration": true,
@@ -17,6 +20,7 @@
     "allowJs": true,
     "types": [
       "bun-types" // add Bun global
-    ]
+    ],
+		"outDir": "dist",
   }
 }
