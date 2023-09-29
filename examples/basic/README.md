@@ -15,7 +15,7 @@ $ docker start -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
 3. Run migrations:
 
 ```bash
-$ bunx push:pg --config ./drizzle.config.ts
+$ bunx drizzle-kit push:pg
 ```
 
 4. Run the arkiver:
@@ -27,5 +27,5 @@ $ ARKIVE_NAME=example bun run index.ts
 5. Run drizzle studio:
    
 ```bash
-$ bunx drizzle-kit studio --config ./drizzle.config.ts
+$ bunx drizzle-kit studio
 ```
