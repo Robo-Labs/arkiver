@@ -1,9 +1,9 @@
 export * from "./data-source";
-export { Arkiver, ArkiverParams } from "./arkiver";
+export { Arkiver, type ArkiverParams } from "./arkiver";
 export {
-  DbProvider,
-  IncrementValueParams,
+  type DbProvider,
+  type IncrementValueParams,
   PgDrizzleProvider,
-  PgDrizzleProviderParams,
-  UpdateChainBlockParams,
+  type PgDrizzleProviderParams,
+  type UpdateChainBlockParams,
 } from "./db-provider";

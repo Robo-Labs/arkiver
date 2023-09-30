@@ -1,7 +1,7 @@
 export { getAbiEvents } from "./abi";
 export { bigintMax, bigintMin } from "./bigint";
 export {
-  WithCacheParameters,
+  type WithCacheParameters,
   getCache,
   promiseCache,
   responseCache,
@@ -11,9 +11,9 @@ export { getChainObjFromChainName, supportedChains } from "./chains";
 export { retry } from "./promise";
 export { Store } from "./store";
 export {
-  Entries,
-  FromEntries,
-  OmitByValue,
-  PickByValue,
-  ValueOf,
+  type Entries,
+  type FromEntries,
+  type OmitByValue,
+  type PickByValue,
+  type ValueOf,
 } from "./types";
