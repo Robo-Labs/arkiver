@@ -2,12 +2,12 @@
   "name": "arkiver",
   "version": "1.0.0",
   "description": "Fast and easy open-source blockchain indexing framework in TypeScript",
-  "module": "./index.js",
+  "module": "./src/index.js",
   "types": "./src/index.d.ts",
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
-      "import": "./index.js"
+      "import": "./src/index.js"
     }
   },
   "license": "MIT",
@@ -19,6 +19,9 @@
     "url": "https://github.com/Robo-Labs/arkiver/issues"
   },
   "type": "module",
+  "scripts": {
+    "build": "bunx tsc && cp package.json dist/ && cp README.md dist/ && cp LICENSE dist/"
+  },
   "devDependencies": {
     "bun-types": "latest",
     "drizzle-kit": "^0.19.13",

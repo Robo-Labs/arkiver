@@ -1,10 +1,9 @@
 import { Logger } from "pino";
-import { ArkiveManifest, Contract } from "../types/manifest";
-import { ArkiveRecord } from "../types/record";
+import { ArkiveManifest, Contract } from "./manifest-builder/manifest";
+import { ArkiveRecord } from "./record";
 import { DbProvider } from "./db-provider";
-import { childSource } from "../tables/child-source";
-import { getChainObjFromChainName } from "../utils/chains";
-import { EvmDataSource } from "./data-source/evm/evm";
+import { childSource } from "./tables/child-source";
+import { EvmDataSource } from "./data-sources/evm/evm";
 
 export interface ArkiverParams<TContext extends {}> {
   manifest: ArkiveManifest<TContext>;
@@ -107,7 +106,7 @@ export class Arkiver<TContext extends {}> {
 
 const mergeContracts = <TContext extends {}>(
   contracts: Record<string, Contract<TContext>>,
-  childSources: (typeof childSource.selectType)[]
+  childSources: (typeof childSource.$inferSelect)[]
 ) => {
   if (!contracts) {
     return [];
