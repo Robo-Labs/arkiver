@@ -10,5 +10,4 @@ export const chainMetadata = sqliteTable("chain_metadata", {
 	totalLogsProcessed: integer('total_logs_processed', { mode: 'number' }).notNull(),
 	totalBlocksFetched: integer('total_blocks_fetched', { mode: 'number' }).notNull(),
 	totalBlocksProcessed: integer('total_blocks_processed', { mode: 'number' }).notNull(),
-	totalErrors: integer('total_errors', { mode: 'number' }).notNull(),
 })

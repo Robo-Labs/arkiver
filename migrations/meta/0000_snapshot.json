@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "sqlite",
-  "id": "87125ea5-28a7-4105-a3ec-a4b5254a2034",
+  "id": "c9ede7a0-f44d-42c8-a398-9e1b2db5e2ab",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "arkive_metadata": {
@@ -95,13 +95,6 @@
         },
         "total_blocks_processed": {
           "name": "total_blocks_processed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "total_errors": {
-          "name": "total_errors",
           "type": "integer",
           "primaryKey": false,
           "notNull": true,

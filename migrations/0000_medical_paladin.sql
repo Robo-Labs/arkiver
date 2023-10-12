@@ -13,8 +13,7 @@ CREATE TABLE `chain_metadata` (
 	`total_logs_fetched` integer NOT NULL,
 	`total_logs_processed` integer NOT NULL,
 	`total_blocks_fetched` integer NOT NULL,
-	`total_blocks_processed` integer NOT NULL,
-	`total_errors` integer NOT NULL
+	`total_blocks_processed` integer NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE `child_source` (

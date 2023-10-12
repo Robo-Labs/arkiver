@@ -1,19 +1,24 @@
 import { Abi, PublicClient, getContract } from "viem";
 import { Data } from "./data-queue";
-import { Mutex } from "async-mutex";
 import { ManifestLoader } from "./loader";
 import { Logger } from "pino";
 import { ArkiveClient } from "../../client";
 import { Store } from "../../../utils/store";
 import { retry } from "../../../utils/promise";
 import EventEmitter from "eventemitter3";
-import { DataSourceManifest, EventHandler } from "../../manifest-builder/manifest";
+import {
+  DataSourceManifest,
+  EventHandler,
+} from "../../manifest-builder/manifest";
+import { DbProvider } from "../../db-provider";
 
 export interface EvmHandlerRunnerParams<TContext extends {}> {
   dataSourceManifest: DataSourceManifest<TContext>;
   client: ArkiveClient;
   context: TContext;
   loader: ManifestLoader<TContext>;
+  dbProvider: DbProvider;
+  chain: string;
   logger?: Logger;
   maxRetries?: number;
   retryDelayMs?: number;
@@ -21,9 +26,13 @@ export interface EvmHandlerRunnerParams<TContext extends {}> {
 
 export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
   #client: ArkiveClient;
-  #processLock: Mutex;
   #context: TContext;
   #loader: ManifestLoader<TContext>;
+  #dbProvider: DbProvider;
+  #chain: string;
+  #highestProcessedBlock = 0n;
+  #totalLogsProcessed = 0;
+  #totalBlocksProcessed = 0;
   #logger?: Logger;
   #config: {
     maxRetries: number;
@@ -37,15 +46,18 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
     context,
     loader,
     logger,
+    dbProvider,
+    chain,
     maxRetries = 5,
     retryDelayMs = 500,
   }: EvmHandlerRunnerParams<TContext>) {
     super();
     this.#client = client;
-    this.#processLock = new Mutex();
     this.#context = context;
     this.#loader = loader;
     this.#logger = logger;
+    this.#dbProvider = dbProvider;
+    this.#chain = chain;
     this.#store = new Store({ max: 1000 });
     this.#config = {
       maxRetries,
@@ -54,32 +66,59 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
   }
 
   async processData({ blocks, logs }: Data) {
-    await this.#processLock.runExclusive(async () => {
-      this.#logger?.debug({
-        event: "evmHandlerRunner.processData",
-        context: { blocks: blocks.length, logs: logs.length },
-      });
-      const merged: (
-        | { number: bigint; blockNumber?: never }
-        | { number?: never; blockNumber: bigint }
-      )[] = [...blocks, ...logs];
-      const sorted = merged.sort((a, b) => {
-        const aBlock = a.blockNumber !== undefined ? a.blockNumber : a.number;
-        const bBlock = b.blockNumber !== undefined ? b.blockNumber : b.number;
-
-        return Number(aBlock - bBlock);
-      });
-
-      for (const item of sorted) {
-        if (item.blockNumber !== undefined) {
-          // log
-          await this.#processLog(item as Data["logs"][number]);
-        } else {
-          // block
-          await this.#processBlock(item as Data["blocks"][number]);
-        }
-      }
+    this.#logger?.debug({
+      event: "evmHandlerRunner.processData",
+      context: { blocks: blocks.length, logs: logs.length },
     });
+    const merged: (
+      | { number: bigint; blockNumber?: never }
+      | { number?: never; blockNumber: bigint }
+    )[] = [...blocks, ...logs];
+    const sorted = merged.sort((a, b) => {
+      const aBlock = a.blockNumber !== undefined ? a.blockNumber : a.number;
+      const bBlock = b.blockNumber !== undefined ? b.blockNumber : b.number;
+
+      return Number(aBlock - bBlock);
+    });
+
+    for (const item of sorted) {
+      if (item.blockNumber !== undefined) {
+        // log
+        await this.#processLog(item as Data["logs"][number]);
+      } else {
+        // block
+        await this.#processBlock(item as Data["blocks"][number]);
+      }
+    }
+
+    const end = sorted.at(-1);
+    const endBlock = end?.blockNumber ?? end?.number;
+
+    this.#totalLogsProcessed += logs.length;
+    this.#totalBlocksProcessed += blocks.length;
+
+    await Promise.all([
+      async () => {
+        if (endBlock && endBlock > this.#highestProcessedBlock) {
+          this.#highestProcessedBlock = endBlock;
+          await this.#dbProvider.updateChainBlock({
+            chain: this.#chain,
+            blockHeight: endBlock,
+            column: "highestProcessedBlock",
+          });
+        }
+      },
+			this.#totalLogsProcessed > 0 && this.#dbProvider.incrementMetadataValue({
+				chain: this.#chain,
+				value: this.#totalLogsProcessed,
+				column: 'totalLogsProcessed'
+			}),
+			this.#totalBlocksProcessed > 0 && this.#dbProvider.incrementMetadataValue({
+				chain: this.#chain,
+				value: this.#totalBlocksProcessed,
+				column: 'totalBlocksProcessed'
+			})
+    ]);
   }
 
   async #processLog(log: Data["logs"][number]) {

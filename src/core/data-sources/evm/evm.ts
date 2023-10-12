@@ -10,6 +10,7 @@ import EventEmitter from "eventemitter3";
 import { createArkiveClient } from "../../client";
 import { DataSourceManifest } from "../../manifest-builder/manifest";
 import { ArkiveRecord } from "../../record";
+import { Mutex } from "async-mutex";
 
 export interface EvmDataSourceParams<TContext extends {}> {
   chain: string;
@@ -84,6 +85,8 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
       dataProvider,
       latestBlock,
       loader,
+      chain: this.#chain,
+      dbProvider: this.#dbProvider,
     });
     const handlerRunner = new EvmHandlerRunner({
       dataSourceManifest: this.#dataSourceManifest,
@@ -91,13 +94,21 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
       context: this.#context,
       loader,
       logger: this.#logger,
+			chain: this.#chain,
+			dbProvider: this.#dbProvider,
     });
 
     // TODO: listen for errors on dataFetcher and handle them
 
     // connect components
+    const handlerLock = new Mutex();
     dataFetcher.on("data", (data) => queue.push(data));
-    queue.on("data", (data) => handlerRunner.processData(data));
+		// handle sequential processing of data here so we can add an option later to process in parallel
+    queue.on("data", (data) =>
+      handlerLock.runExclusive(
+        async () => await handlerRunner.processData(data)
+      )
+    );
     handlerRunner.on("error", (error) => {
       this.#logger?.error({
         source: "evmDataSource.handlerRunner",

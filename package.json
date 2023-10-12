@@ -4,6 +4,9 @@
   "description": "Fast and easy open-source blockchain indexing framework in TypeScript",
   "module": "./src/index.js",
   "types": "./src/index.d.ts",
+  "bin": {
+		"arkiver": "./bin.js"
+	},
   "exports": {
     ".": {
       "types": "./src/index.d.ts",
@@ -20,7 +23,8 @@
   },
   "type": "module",
   "scripts": {
-    "build": "bunx tsc && cp package.json dist/ && cp README.md dist/ && cp LICENSE dist/"
+    "build": "bunx tsc && cp README.md dist/ && cp LICENSE dist/ && cp -r migrations dist/",
+		"migrations:generate": "bunx drizzle-kit generate:sqlite --schema ./src/core/tables --out ./migrations"
   },
   "devDependencies": {
     "bun-types": "latest",
@@ -33,6 +37,7 @@
   "dependencies": {
     "abitype": "^0.9.8",
     "async-mutex": "^0.4.0",
+    "commander": "^11.0.0",
     "drizzle-orm": "^0.28.6",
     "elysia": "^0.7.6",
     "eventemitter3": "^5.0.1",

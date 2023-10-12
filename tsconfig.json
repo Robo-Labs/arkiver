@@ -1,7 +1,8 @@
 {
 	"include": [
 		"src/**/*",
-		"scripts"
+		"bin.ts",
+		"package.json"
 	],
   "compilerOptions": {
     "lib": ["ESNext"],

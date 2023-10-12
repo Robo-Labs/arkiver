@@ -1,17 +1,20 @@
 import { Logger } from "pino";
-import { bigintMin } from "../../../utils/bigint";
+import { bigintMax, bigintMin } from "../../../utils/bigint";
 import { EvmDataProvider } from "./data-provider";
 import { ManifestLoader } from "./loader";
 import { EventEmitter } from "eventemitter3";
 import { Data } from "./data-queue";
 import { retry } from "../../../utils/promise";
 import { WatchBlockNumberReturnType } from "viem";
+import { DbProvider } from "../../db-provider";
 
 export interface EvmDataFetcherParams {
   loader: ManifestLoader<any>;
   blockRange: bigint;
   dataProvider: EvmDataProvider;
   latestBlock: bigint;
+  dbProvider: DbProvider;
+  chain: string;
   concurrency?: number;
   waitNewBlockMs?: number;
   maxRetries?: number;
@@ -32,6 +35,11 @@ export class EvmDataFetcher extends EventEmitter {
     blockRange: bigint;
     fetchDelayMs: number;
   };
+  #dbProvider: DbProvider;
+  #chain: string;
+  #highestFetchedBlock = 0n;
+  #totalLogsFetched = 0;
+  #totalBlocksFetched = 0;
   unwatch?: WatchBlockNumberReturnType;
   #logger?: Logger;
 
@@ -41,6 +49,8 @@ export class EvmDataFetcher extends EventEmitter {
     blockRange,
     dataProvider,
     latestBlock,
+    dbProvider,
+    chain,
     concurrency = 5,
     waitNewBlockMs = 1000,
     maxRetries = 5,
@@ -59,10 +69,12 @@ export class EvmDataFetcher extends EventEmitter {
       blockRange,
       fetchDelayMs,
     };
+    this.#dbProvider = dbProvider;
+    this.#chain = chain;
     this.#latestBlock = latestBlock;
   }
 
-  start(startBlock: bigint) {
+  start(startBlock: bigint, historicalOnly?: true) {
     this.#logger?.debug({
       event: "evmDataFetcher.start",
       context: {
@@ -72,12 +84,19 @@ export class EvmDataFetcher extends EventEmitter {
     });
 
     this.#startBatchProcess(startBlock).then((success) => {
-      if (success) this.#startLiveBlockProcess();
+      if (success && !historicalOnly) this.#startLiveBlockProcess();
     });
   }
 
   async #startBatchProcess(startBlock: bigint) {
     const workers = [...new Array(this.#config.concurrency)];
+    let contUpdateDbLoop = true;
+    const updateDbLoop = async () => {
+      if (!contUpdateDbLoop) return;
+      await this.#updateDb();
+      setTimeout(updateDbLoop, 1000);
+    };
+    updateDbLoop();
     try {
       await Promise.all(
         workers.map(async (_, offset) => {
@@ -96,6 +115,12 @@ export class EvmDataFetcher extends EventEmitter {
             );
 
             await this.#processBlock(nextBlock, endBlock);
+
+            this.#highestFetchedBlock = bigintMax(
+              this.#highestFetchedBlock,
+              endBlock
+            );
+
             await new Promise((resolve) =>
               setTimeout(resolve, this.#config.fetchDelayMs)
             );
@@ -108,29 +133,36 @@ export class EvmDataFetcher extends EventEmitter {
     } catch (error) {
       this.emit("error", error);
       return false;
+    } finally {
+      contUpdateDbLoop = false;
     }
   }
 
   async #startLiveBlockProcess() {
     this.unwatch = this.#dataProvider.onBlock(
-      async (blockNumber) => {
+      async (newBlock) => {
         let startBlock = this.#latestBlock + 1n;
-        if (startBlock > blockNumber) return;
+        if (startBlock > newBlock) return;
         while (true) {
-          const endBlock = bigintMin(
-            startBlock + this.#config.blockRange - 1n,
-            blockNumber
-          );
+          // lowest of either the end of the range or the latest block
+          const rangeEnd = startBlock + this.#config.blockRange - 1n;
+          const endBlock = bigintMin(rangeEnd, newBlock);
           try {
             await this.#processBlock(startBlock, endBlock);
           } catch (error) {
             this.emit("error", error);
             return;
           }
-          if (startBlock + this.#config.blockRange - 1n > endBlock) break;
+          // if we've reached the end of the range, break
+          if (rangeEnd > newBlock) break;
           startBlock += this.#config.blockRange;
         }
-        this.#latestBlock = blockNumber;
+        this.#latestBlock = newBlock;
+
+        if (newBlock > this.#highestFetchedBlock) {
+          this.#highestFetchedBlock = newBlock;
+          await this.#updateDb();
+        }
       },
       (error) => {
         this.emit("error", error);
@@ -179,9 +211,32 @@ export class EvmDataFetcher extends EventEmitter {
         startBlock,
         endBlock,
       } satisfies Data);
+
+      this.#totalLogsFetched += res[0].length + res[1].length;
+      this.#totalBlocksFetched += res[2].length;
     } catch (error) {
       throw error;
     }
+  }
+
+  async #updateDb() {
+    await Promise.all([
+      this.#dbProvider.updateChainBlock({
+        chain: this.#chain,
+        blockHeight: this.#highestFetchedBlock,
+        column: "highestFetchedBlock",
+      }),
+			this.#totalLogsFetched > 0 && this.#dbProvider.incrementMetadataValue({
+				chain: this.#chain,
+				value: this.#totalLogsFetched,
+				column: 'totalLogsFetched'
+			}),
+			this.#totalBlocksFetched > 0 && this.#dbProvider.incrementMetadataValue({
+				chain: this.#chain,
+				value: this.#totalBlocksFetched,
+				column: 'totalBlocksFetched'
+			})
+    ]);
   }
 
   stop() {

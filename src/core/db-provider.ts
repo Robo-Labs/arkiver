@@ -1,37 +1,34 @@
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { childSource } from "./tables/child-source";
 import { chainMetadata } from "./tables/chain-metadata";
-import { arkiveMetadata } from "./tables/arkive-metadata"
+import { arkiveMetadata } from "./tables/arkive-metadata";
 import { eq, sql } from "drizzle-orm";
 import { Logger } from "pino";
 
 export interface UpdateChainBlockParams {
   chain: string;
   blockHeight: bigint;
-  type: Extract<keyof typeof chainMetadata.$inferInsert, `${string}Block`>;
+  column: Extract<keyof typeof chainMetadata.$inferInsert, `${string}Block`>;
 }
 
-export interface IncrementValueParams {
+export interface IncrementMetadataValueParams {
   chain: string;
   value: number;
-  type: Extract<keyof typeof chainMetadata.$inferInsert, `total${string}`>;
+  column: Extract<keyof typeof chainMetadata.$inferInsert, `total${string}`>;
 }
 
 export interface DbProvider {
   getChildSource(): Promise<(typeof childSource.$inferSelect)[]>;
   getHighestProcessedBlock(chain: string): Promise<bigint>;
-  updateChainBlock({
-    chain,
-    blockHeight,
-  }: UpdateChainBlockParams): Promise<void>;
-  incrementValue({ chain, value, type }: IncrementValueParams): Promise<void>;
+  updateChainBlock(params: UpdateChainBlockParams): Promise<void>;
+  incrementMetadataValue(params: IncrementMetadataValueParams): Promise<void>;
 }
 
 type ArkiveBaseSchema = {
-	childSource: typeof childSource;
-	chainMetadata: typeof chainMetadata;
-	arkiveMetadata: typeof arkiveMetadata;
-}
+  childSource: typeof childSource;
+  chainMetadata: typeof chainMetadata;
+  arkiveMetadata: typeof arkiveMetadata;
+};
 
 export interface BunSqliteProviderParams {
   db: BunSQLiteDatabase<ArkiveBaseSchema>;
@@ -60,35 +57,43 @@ export class BunSqliteProvider implements DbProvider {
     });
 
     return (
-      (await this.#db.query.chainMetadata.findFirst())
-        ?.highestProcessedBlock ?? 0n
+      (await this.#db.query.chainMetadata.findFirst())?.highestProcessedBlock ??
+      0n
     );
   }
 
-  async incrementValue({ chain, value, type }: IncrementValueParams) {
+  async incrementMetadataValue({
+    chain,
+    value,
+    column,
+  }: IncrementMetadataValueParams) {
     this.#logger?.debug({
-      event: "dbProvider.incrementValue",
-      context: { chain, value, type },
+      event: "dbProvider.incrementMetadataValue",
+      context: { chain, value, column },
     });
 
     await this.#db
       .update(chainMetadata)
       .set({
-        [type]: sql`${chainMetadata[type]} + ${value}`,
+        [column]: sql`${chainMetadata[column]} + ${value}`,
       })
       .where(eq(chainMetadata.chain, chain));
   }
 
-  async updateChainBlock({ chain, blockHeight, type }: UpdateChainBlockParams) {
+  async updateChainBlock({
+    chain,
+    blockHeight,
+    column,
+  }: UpdateChainBlockParams) {
     this.#logger?.debug({
       event: "dbProvider.updateChainBlock",
-      context: { chain, blockHeight, type },
+      context: { chain, blockHeight, column },
     });
 
     await this.#db
       .update(chainMetadata)
       .set({
-        [type]: blockHeight,
+        [column]: blockHeight,
       })
       .where(eq(chainMetadata.chain, chain));
   }
