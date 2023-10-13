@@ -1,0 +1,14 @@
+{
+  "name": "new-basic",
+  "module": "manifest.ts",
+  "type": "module",
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "arkiver": "file:../../dist"
+  }
+}

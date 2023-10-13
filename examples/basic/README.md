@@ -1,31 +1,15 @@
-To run this example:
+# plugin
 
-1. Install dependencies:
-  
-```bash
-$ bun install
-```
-
-2. Start postgres database:
+To install dependencies:
 
 ```bash
-$ docker start -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
+bun install
 ```
 
-3. Run migrations:
+To run:
 
 ```bash
-$ bunx drizzle-kit push:pg
+bun run index.ts
 ```
 
-4. Run the arkiver:
-
-```bash
-$ ARKIVE_NAME=example bun run index.ts
-```
-
-5. Run drizzle studio:
-   
-```bash
-$ bunx drizzle-kit studio
-```
+This project was created using `bun init` in bun v1.0.4. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
