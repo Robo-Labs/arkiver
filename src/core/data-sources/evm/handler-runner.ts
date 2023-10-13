@@ -8,9 +8,9 @@ import { retry } from "../../../utils/promise";
 import EventEmitter from "eventemitter3";
 import {
   DataSourceManifest,
-  EventHandler,
 } from "../../manifest-builder/manifest";
 import { DbProvider } from "../../db-provider";
+import { EventHandler } from "../../manifest-builder/event-handler";
 
 export interface EvmHandlerRunnerParams<TContext extends {}> {
   dataSourceManifest: DataSourceManifest<TContext>;

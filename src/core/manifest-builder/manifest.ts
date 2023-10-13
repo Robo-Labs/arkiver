@@ -5,6 +5,8 @@ import { DataSourceBuilder } from "./data-source";
 import { Store } from "../../utils/store";
 import { supportedChains } from "../chains";
 import { ArkiveClient } from "../client";
+import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { EventHandler } from "./event-handler";
 
 export const manifestVersion = "v1";
 
@@ -21,7 +23,7 @@ export class Manifest<TContext extends {} = {}, TChains extends Chains = ""> {
       name: formattedName,
       version: manifestVersion,
       dataSources: {},
-      tables: [],
+      schema: {},
     };
   }
 
@@ -35,14 +37,20 @@ export class Manifest<TContext extends {} = {}, TChains extends Chains = ""> {
     }
     return this;
   }
-}
 
+  schema<TSchema extends Record<string, unknown>>(
+    schema: TSchema
+  ): Manifest<TContext & { db: PostgresJsDatabase<TSchema> }, TChains> {
+		this.manifest.schema = schema;
+    return this;
+  }
+}
 
 export type Chains = keyof typeof supportedChains | (string & {});
 
 export interface ArkiveManifest<TContext extends {}> {
   dataSources: Partial<Record<Chains, DataSourceManifest<TContext>>>;
-  tables: {}[];
+  schema: Record<string, unknown>;
   name: string;
   version: string;
 }
@@ -81,25 +89,5 @@ export type BlockHandlerContext<ExtendedContext extends {}> = {
   block: Block<bigint, false>;
   client: ArkiveClient;
   store: Store;
-  logger: Logger;
-} & ExtendedContext;
-
-export type EventHandler<
-  TAbi extends Abi,
-  TEventName extends ExtractAbiEventNames<TAbi>,
-  ExtendedContext = {}
-> = (
-  ctx: EventHandlerContext<TAbi, TEventName, ExtendedContext>
-) => Promise<void> | void;
-
-export type EventHandlerContext<
-  TAbi extends Abi,
-  TEventName extends ExtractAbiEventNames<TAbi>,
-  ExtendedContext = {}
-> = {
-  event: Log<bigint, number, false, ExtractAbiEvent<TAbi, TEventName>, true>;
-  client: ArkiveClient;
-  store: Store;
-  contract: GetContractReturnType<TAbi, PublicClient>;
   logger: Logger;
 } & ExtendedContext;

@@ -12,7 +12,7 @@ import { ArkivePgTable, Referral } from "./types";
 import { ArkiveSchema } from "../schema/types";
 import { customNumeric } from "./custom-types";
 
-export const createPgTable = <
+export const createTable = <
 	TName extends string,
 	TArkiveSchema extends ArkiveSchema
 >(

@@ -3,7 +3,8 @@ import { getAbiEvents } from "../../../utils/abi";
 import { bigintMin } from "../../../utils/bigint";
 import { Abi, AbiEvent } from "abitype";
 import { Logger } from "pino";
-import { DataSourceManifest, BlockHandler, EventHandler, Contract, BlockHandlerInfo } from "../../manifest-builder/manifest";
+import { DataSourceManifest, BlockHandler, Contract, BlockHandlerInfo } from "../../manifest-builder/manifest";
+import { EventHandler } from "../../manifest-builder/event-handler";
 
 export interface ManifestLoaderParams<TContext extends {}> {
   latestBlock: bigint;

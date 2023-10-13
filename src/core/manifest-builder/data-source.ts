@@ -1,6 +1,7 @@
 import { Abi, AbiEventParameter, AbiType, ExtractAbiEventNames, ExtractAbiEvents } from "abitype";
-import { BlockHandler, BlockHandlerInfo, ChainOptions, Chains, Contract, DataSourceManifest, EventHandler, Manifest } from "./manifest";
+import { BlockHandler, BlockHandlerInfo, ChainOptions, Chains, Contract, DataSourceManifest, Manifest } from "./manifest";
 import { getChainObjFromChainName } from "../chains";
+import { EventHandler } from "./event-handler";
 
 export class DataSourceBuilder<
 	TContracts extends Record<string, Abi>,
