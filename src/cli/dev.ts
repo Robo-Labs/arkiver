@@ -7,7 +7,7 @@ import { arkiveMetadata } from "../core/tables/arkive-metadata";
 export const dev = async () => {
   const coreMigrationsDir = path.join(
     path.dirname(Bun.resolveSync("arkiver", process.cwd())),
-		'../migrations'
+		'./core/tables/migrations'
   );
 
 	console.log(coreMigrationsDir)
@@ -16,7 +16,7 @@ export const dev = async () => {
 		arkiveMetadata
 	}
 
-	const db = drizzle<typeof schema>(new Database("./test.db"))
+	const db = drizzle<typeof schema>(new Database("./test.sqlite"))
 
 	migrate(db, { migrationsFolder: coreMigrationsDir })
 // view tables

@@ -24,8 +24,8 @@
   "type": "module",
   "scripts": {
     "build": "bunx tsc && bun run post-build",
-		"post-build": "cp README.md dist/ && cp LICENSE dist/ && cp -r migrations dist/",
-		"migrations:generate": "bunx drizzle-kit generate:sqlite --schema ./src/core/tables --out ./migrations"
+		"post-build": "cp README.md dist/ && cp LICENSE dist/ && cp -r ./src/core/tables/migrations dist/src/core/tables/migrations",
+		"migrations:generate": "bunx drizzle-kit generate:sqlite --schema ./src/core/tables --out ./src/core/tables/migrations"
   },
   "devDependencies": {
     "bun-types": "latest",
