@@ -1,5 +1,6 @@
 {
-  "name": "new-basic",
+  "name": "basic",
+	"private": "true",
   "module": "manifest.ts",
   "type": "module",
   "devDependencies": {
@@ -9,6 +10,6 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
-    "arkiver": "file:../../dist"
+    "arkiver": "workspace:*"
   }
 }

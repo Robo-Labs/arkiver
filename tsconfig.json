@@ -1,9 +1,4 @@
 {
-	"include": [
-		"src/**/*",
-		"bin.ts",
-		"package.json"
-	],
   "compilerOptions": {
     "lib": ["ESNext"],
     "module": "esnext",
@@ -20,7 +15,6 @@
     "allowJs": true,
     "types": [
       "bun-types" // add Bun global
-    ],
-		"outDir": "dist",
+    ]
   }
 }

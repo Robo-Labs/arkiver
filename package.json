@@ -1,50 +1,8 @@
 {
-  "name": "arkiver",
-  "version": "1.0.1",
-  "description": "Fast and easy open-source blockchain indexing framework in TypeScript",
-  "module": "./src/index.js",
-  "types": "./src/index.d.ts",
-  "bin": {
-		"arkiver": "./bin.js"
-	},
-  "exports": {
-    ".": {
-      "types": "./src/index.d.ts",
-      "import": "./src/index.js"
-    }
-  },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Robo-Labs/arkiver.git"
-  },
-  "bugs": {
-    "url": "https://github.com/Robo-Labs/arkiver/issues"
-  },
-  "type": "module",
-  "scripts": {
-    "build": "bunx tsc && bun run post-build",
-		"post-build": "cp README.md dist/ && cp LICENSE dist/ && cp -r ./src/core/tables/migrations dist/src/core/tables/migrations",
-		"migrations:generate": "bunx drizzle-kit generate:sqlite --schema ./src/core/tables --out ./src/core/tables/migrations"
-  },
-  "devDependencies": {
-    "bun-types": "latest",
-    "drizzle-kit": "^0.19.13",
-    "pino-pretty": "^10.2.0",
-    "abitype": "^0.9.8"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "dependencies": {
-    "async-mutex": "^0.4.0",
-    "commander": "^11.0.0",
-    "drizzle-orm": "^0.28.6",
-    "eventemitter3": "^5.0.1",
-    "lru-cache": "^10.0.1",
-    "pg": "^8.11.3",
-    "pino": "^8.15.1",
-    "postgres": "^3.3.5",
-    "viem": "^1.12.0"
-  }
+	"name": "arkiver-root",
+	"private": "true",
+	"workspaces": [
+		"packages/*",
+		"examples/*"
+	]
 }
