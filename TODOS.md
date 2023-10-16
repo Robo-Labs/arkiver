@@ -1,6 +1,7 @@
 - [X] Implement metadata update
 - [X] Write migration scripts generator function ~~based on [Payload's code](https://github.com/payloadcms/payload/blob/main/packages/db-postgres/src/createMigration.ts)~~
 - [ ] Write client startup script
+- [ ] Write build script using Bun bundler
 - [ ] Update example arkive
 - [ ] Handle errors in evm data source
 - [ ] Refactor logging to use class method decorators
