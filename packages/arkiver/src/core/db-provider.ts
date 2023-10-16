@@ -4,6 +4,8 @@ import { chainMetadata } from "./tables/chain-metadata";
 import { arkiveMetadata } from "./tables/arkive-metadata";
 import { eq, sql } from "drizzle-orm";
 import { Logger } from "pino";
+import path from "node:path";
+import { migrate } from "drizzle-orm/bun-sqlite/migrator";
 
 export interface UpdateChainBlockParams {
   chain: string;
@@ -42,6 +44,9 @@ export class BunSqliteProvider implements DbProvider {
   constructor({ db, logger }: BunSqliteProviderParams) {
     this.#db = db;
     this.#logger = logger;
+
+    const coreMigrationsDir = path.join(import.meta.dir, "./tables/migrations");
+    migrate(db, { migrationsFolder: coreMigrationsDir });
   }
 
   async getChildSource() {

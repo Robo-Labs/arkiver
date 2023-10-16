@@ -1,18 +1,66 @@
 #!/usr/bin/env bun
-import { Command } from 'commander';
-import pkg from "./package.json"
-import { dev } from './src/cli/dev';
+import pkg from "./package.json";
+import { runDev } from "./src/core/run-dev";
+import { defineCommand, runMain } from "citty";
+import { generateMigrations } from "./src/db/postgres/generate-migrations";
 
-const program = new Command();
+const manifestArg = {
+  type: "string",
+  default: "./manifest.ts",
+  description: "Path to the arkive manifest file",
+  valueHint: "path/to/manifest.ts",
+  alias: "m",
+  required: false,
+} as const;
 
-program
-	.name('arkiver')
-	.description(pkg.description)
-	.version(pkg.version);
+const outArg = {
+  type: "string",
+  default: "./migrations",
+  description: "Path to the output directory",
+  valueHint: "path/to/migrations",
+  alias: "o",
+  required: false,
+} as const;
 
-program
-	.command('dev')
-	.description('Run the Arkiver in development mode')
-	.action(dev);
+const devCommand = defineCommand({
+  meta: {
+    description: "Run the Arkiver in development mode",
+  },
+  args: {
+    manifest: manifestArg,
+    out: outArg,
+  },
+  run: async ({ args }) => {
+    await runDev({ manifestPath: args.manifest, migrationsDir: args.out });
+  },
+});
 
-program.parseAsync()
+const genCommand = defineCommand({
+  meta: {
+    description: "Generate migration files for your Arkive schema",
+  },
+  args: {
+    manifest: manifestArg,
+    out: outArg,
+  },
+  run: ({ args }) => {
+    generateMigrations({
+      manifestPath: args.manifest,
+      migrationsDir: args.out,
+    });
+  },
+});
+
+const main = defineCommand({
+  meta: {
+    name: pkg.name,
+    description: pkg.description,
+    version: pkg.version,
+  },
+  subCommands: {
+    dev: devCommand,
+    gen: genCommand,
+  },
+});
+
+await runMain(main);

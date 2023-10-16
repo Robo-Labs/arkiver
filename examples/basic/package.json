@@ -1,6 +1,6 @@
 {
   "name": "basic",
-	"private": "true",
+  "private": "true",
   "module": "manifest.ts",
   "type": "module",
   "devDependencies": {
@@ -11,5 +11,8 @@
   },
   "dependencies": {
     "arkiver": "workspace:*"
+  },
+  "scripts": {
+    "dev": "arkiver dev"
   }
 }
