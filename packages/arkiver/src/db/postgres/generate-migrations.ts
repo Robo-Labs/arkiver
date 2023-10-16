@@ -1,26 +1,13 @@
-import path from "node:path";
-import fs from "node:fs";
-
 export const generateMigrations = ({
-  manifestPath,
-	migrationsDir
+	migrationsDir,
+	bunxExe,
+	schemaPath
 }: {
-  manifestPath: string;
 	migrationsDir: string;
+	bunxExe: string;
+	schemaPath: string;
 }) => {
-  const bunxExe = Bun.which("bunx");
-
-  if (!bunxExe) {
-    throw new Error("bun is not installed.");
-  }
-	
   const cwd = process.cwd();
-
-  const content = `const manifest = require("${manifestPath}").default; module.exports = { ...manifest.manifest.schema };`;
-
-  const reExportFilePath = path.join(cwd, "__schema.ts");
-
-  fs.writeFileSync(reExportFilePath, content);
 
   Bun.spawnSync(
     [
@@ -29,7 +16,7 @@ export const generateMigrations = ({
       "drizzle-kit",
       "generate:pg",
       "--schema",
-      reExportFilePath,
+      schemaPath,
       "--out",
       migrationsDir,
     ],
@@ -38,6 +25,4 @@ export const generateMigrations = ({
 			stdio: ['inherit', 'inherit', 'inherit']
     }
   );
-
-	fs.rmSync(reExportFilePath)
 };

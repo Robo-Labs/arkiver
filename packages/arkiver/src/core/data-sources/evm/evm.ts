@@ -14,7 +14,7 @@ import { Mutex } from "async-mutex";
 
 export interface EvmDataSourceParams<TContext extends {}> {
   chain: string;
-  record: ArkiveRecord;
+  record?: ArkiveRecord;
   dataSourceManifest: DataSourceManifest<TContext>;
   dbProvider: DbProvider;
   context: TContext;
@@ -23,7 +23,7 @@ export interface EvmDataSourceParams<TContext extends {}> {
 
 export class EvmDataSource<TContext extends {}> extends EventEmitter {
   #chain: string;
-  #record: ArkiveRecord;
+  #record?: ArkiveRecord;
   #dataSourceManifest: DataSourceManifest<TContext>;
   #dbProvider: DbProvider;
   #context: TContext;

@@ -1,7 +1,7 @@
 {
   "version": "5",
   "dialect": "sqlite",
-  "id": "c9ede7a0-f44d-42c8-a398-9e1b2db5e2ab",
+  "id": "a7659425-8b65-4052-bad0-01d86f1e72db",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "arkive_metadata": {
@@ -101,7 +101,15 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "chain_metadata_chain_unique": {
+          "name": "chain_metadata_chain_unique",
+          "columns": [
+            "chain"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {}

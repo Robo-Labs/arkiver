@@ -119,6 +119,9 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
 				column: 'totalBlocksProcessed'
 			})
     ]);
+
+		this.#totalLogsProcessed = 0;
+		this.#totalBlocksProcessed = 0;
   }
 
   async #processLog(log: Data["logs"][number]) {

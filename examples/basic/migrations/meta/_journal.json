@@ -1,12 +1,12 @@
 {
   "version": "5",
-  "dialect": "sqlite",
+  "dialect": "pg",
   "entries": [
     {
       "idx": 0,
       "version": "5",
-      "when": 1697473027559,
-      "tag": "0000_fluffy_fat_cobra",
+      "when": 1697468237579,
+      "tag": "0000_opposite_shockwave",
       "breakpoints": true
     }
   ]

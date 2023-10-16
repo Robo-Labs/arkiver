@@ -3,7 +3,7 @@ import { customBigIntText } from './custom-bigint-type'
 
 export const chainMetadata = sqliteTable("chain_metadata", {
 	id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
-	chain: text('chain').notNull(),
+	chain: text('chain').notNull().unique(),
 	highestProcessedBlock: customBigIntText('highest_processed_block').notNull(),
 	highestFetchedBlock: customBigIntText('highest_fetched_block').notNull(),
 	totalLogsFetched: integer('total_logs_fetched', { mode: 'number' }).notNull(),

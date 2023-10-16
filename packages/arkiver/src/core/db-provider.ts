@@ -77,12 +77,28 @@ export class BunSqliteProvider implements DbProvider {
       context: { chain, value, column },
     });
 
+		const valueObj = {
+			[column]: value
+		}
+
     await this.#db
-      .update(chainMetadata)
-      .set({
-        [column]: sql`${chainMetadata[column]} + ${value}`,
-      })
-      .where(eq(chainMetadata.chain, chain));
+      .insert(chainMetadata)
+			.values({
+				chain,
+				highestFetchedBlock: 0n,
+				highestProcessedBlock: 0n,
+				totalBlocksFetched: 0,
+				totalBlocksProcessed: 0,
+				totalLogsFetched: 0,
+				totalLogsProcessed: 0,
+				...valueObj
+			})
+      .onConflictDoUpdate({
+				target: chainMetadata.chain,
+				set: {
+					[column]: sql`${chainMetadata[column]} + ${value}`
+				}
+			});
   }
 
   async updateChainBlock({
@@ -95,11 +111,27 @@ export class BunSqliteProvider implements DbProvider {
       context: { chain, blockHeight, column },
     });
 
+		const value = {
+			[column]: blockHeight
+		}
+
     await this.#db
-      .update(chainMetadata)
-      .set({
-        [column]: blockHeight,
-      })
-      .where(eq(chainMetadata.chain, chain));
+      .insert(chainMetadata)
+			.values({
+				chain,
+				highestFetchedBlock: 0n,
+				highestProcessedBlock: 0n,
+				totalBlocksFetched: 0,
+				totalBlocksProcessed: 0,
+				totalLogsFetched: 0,
+				totalLogsProcessed: 0,
+				...value
+			})
+      .onConflictDoUpdate({
+				target: chainMetadata.chain,
+				set: {
+					[column]: blockHeight
+				}
+			});
   }
 }

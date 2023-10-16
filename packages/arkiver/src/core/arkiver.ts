@@ -8,7 +8,7 @@ import { EvmDataSource } from "./data-sources/evm/evm";
 export interface ArkiverParams<TContext extends {}> {
   manifest: ArkiveManifest<TContext>;
   dbProvider: DbProvider;
-  record: ArkiveRecord;
+  record?: ArkiveRecord;
   context: TContext;
   logger?: Logger;
   rpcUrls?: Record<string, string[]>;
@@ -17,7 +17,7 @@ export interface ArkiverParams<TContext extends {}> {
 export class Arkiver<TContext extends {}> {
   #manifest: ArkiveManifest<TContext>;
   #dbProvider: DbProvider;
-  #record: ArkiveRecord;
+  #record?: ArkiveRecord;
   #context: TContext;
   #dataSources: EvmDataSource<TContext>[] = [];
   #rpcUrls?: Record<string, string[]>;

@@ -23,3 +23,5 @@ CREATE TABLE `child_source` (
 	`chain` text NOT NULL,
 	`start_block_height` text NOT NULL
 );
+--> statement-breakpoint
+CREATE UNIQUE INDEX `chain_metadata_chain_unique` ON `chain_metadata` (`chain`);

@@ -237,6 +237,9 @@ export class EvmDataFetcher extends EventEmitter {
 				column: 'totalBlocksFetched'
 			})
     ]);
+
+		this.#totalLogsFetched = 0;
+		this.#totalBlocksFetched = 0;
   }
 
   stop() {
