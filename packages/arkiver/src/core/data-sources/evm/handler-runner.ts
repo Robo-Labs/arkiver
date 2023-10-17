@@ -1,4 +1,4 @@
-import { Abi, PublicClient, getContract } from "viem";
+import { Abi, getContract } from "viem";
 import { Data } from "./data-queue";
 import { ManifestLoader } from "./loader";
 import { Logger } from "pino";
@@ -6,9 +6,7 @@ import { ArkiveClient } from "../../client";
 import { Store } from "../../../utils/store";
 import { retry } from "../../../utils/promise";
 import EventEmitter from "eventemitter3";
-import {
-  DataSourceManifest,
-} from "../../manifest-builder/manifest";
+import { DataSourceManifest } from "../../manifest-builder/manifest";
 import { DbProvider } from "../../db-provider";
 import { EventHandler } from "../../manifest-builder/event-handler";
 
@@ -31,8 +29,6 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
   #dbProvider: DbProvider;
   #chain: string;
   #highestProcessedBlock = 0n;
-  #totalLogsProcessed = 0;
-  #totalBlocksProcessed = 0;
   #logger?: Logger;
   #config: {
     maxRetries: number;
@@ -94,11 +90,8 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
     const end = sorted.at(-1);
     const endBlock = end?.blockNumber ?? end?.number;
 
-    this.#totalLogsProcessed += logs.length;
-    this.#totalBlocksProcessed += blocks.length;
-
     await Promise.all([
-      async () => {
+      (async () => {
         if (endBlock && endBlock > this.#highestProcessedBlock) {
           this.#highestProcessedBlock = endBlock;
           await this.#dbProvider.updateChainBlock({
@@ -107,21 +100,20 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
             column: "highestProcessedBlock",
           });
         }
-      },
-			this.#totalLogsProcessed > 0 && this.#dbProvider.incrementMetadataValue({
-				chain: this.#chain,
-				value: this.#totalLogsProcessed,
-				column: 'totalLogsProcessed'
-			}),
-			this.#totalBlocksProcessed > 0 && this.#dbProvider.incrementMetadataValue({
-				chain: this.#chain,
-				value: this.#totalBlocksProcessed,
-				column: 'totalBlocksProcessed'
-			})
+      })(),
+      logs.length > 0 &&
+        this.#dbProvider.incrementMetadataValue({
+          chain: this.#chain,
+          value: logs.length,
+          column: "totalLogsProcessed",
+        }),
+      blocks.length > 0 &&
+        this.#dbProvider.incrementMetadataValue({
+          chain: this.#chain,
+          value: blocks.length,
+          column: "totalBlocksProcessed",
+        }),
     ]);
-
-		this.#totalLogsProcessed = 0;
-		this.#totalBlocksProcessed = 0;
   }
 
   async #processLog(log: Data["logs"][number]) {

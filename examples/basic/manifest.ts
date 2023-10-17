@@ -8,8 +8,12 @@ export default new Manifest("basic")
   .chain("mainnet", (chain) => {
     chain
       .setOptions({
-        rpcUrls: ["https://rpc.ankr.com/eth", "https://eth.llamarpc.com"],
-        blockRange: 50n,
+        rpcUrls: [
+          "https://eth-mainnet.g.alchemy.com/v2/Gq_75hb6-e8rOFxxTn7lSCCFjJsFdz-p",
+          "https://eth.llamarpc.com",
+          "https://rpc.ankr.com/eth",
+        ],
+        blockRange: 100n,
       })
       .contract({
         name: "Erc20",
@@ -18,7 +22,7 @@ export default new Manifest("basic")
           Transfer: onTransfer,
         },
         sources: {
-          "0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984": 18361783n,
+          "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2": 10861674n,
         },
       });
   });

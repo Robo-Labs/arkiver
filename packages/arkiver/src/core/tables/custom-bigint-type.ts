@@ -8,6 +8,7 @@ export const customBigIntText = customType<{ data: bigint; driverData: string }>
     return value.toString();
   },
   fromDriver(value: string) {
+		if (!value) return 0n
     return BigInt(value);
   },
 });

@@ -19,10 +19,12 @@ export const runDev = async ({
   manifestPath,
   migrationsDir,
   pgConnectionString,
+	logLevel
 }: {
   manifestPath: string;
   migrationsDir: string;
   pgConnectionString: string;
+	logLevel: string
 }) => {
 	console.clear()
   const cwd = process.cwd();
@@ -45,7 +47,7 @@ export const runDev = async ({
   }
 
   // arkiver initialization
-  const logger = pino({ transport: { target: "pino-pretty" } });
+  const logger = pino({ transport: { target: "pino-pretty" }, level: logLevel });
 
   const sqlite = bunsqliteDrizzle(new Database("arkiver.sqlite"), {
     schema: { arkiveMetadata, chainMetadata, childSource },

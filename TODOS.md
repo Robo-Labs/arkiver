@@ -2,6 +2,8 @@
 - [X] Write migration scripts generator function ~~based on [Payload's code](https://github.com/payloadcms/payload/blob/main/packages/db-postgres/src/createMigration.ts)~~
 - [X] Write client startup script
 - [X] Update example arkive
+- [ ] Use dockerode to startup postgres container in dev mode
+- [ ] Add CLI option to wipe db and reindex from scratch
 - [ ] Write build script using Bun bundler
 - [ ] Handle errors in evm data source
 - [ ] Refactor logging to use class method decorators

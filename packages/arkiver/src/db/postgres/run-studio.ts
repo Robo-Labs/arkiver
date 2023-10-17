@@ -36,7 +36,7 @@ export const runStudio = async ({
 		stdout: 'inherit'
 	})
 
-	await Bun.sleep(2000)
+	await Bun.sleep(500)
 
 	fs.rmSync(tempConfigPath)
 }

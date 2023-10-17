@@ -80,10 +80,7 @@ export class ViemDataProvider implements EvmDataProvider {
 
     for (const contract of contracts) {
       const filteredSources = Object.entries(contract.sources)
-        .filter(
-          ([source, sourceStartBlock]) =>
-            sourceStartBlock <= endBlock && sourceStartBlock >= startBlock
-        )
+        .filter(([, sourceStartBlock]) => startBlock >= sourceStartBlock)
         .map(([source]) => source);
 
       if (filteredSources.length === 0) continue;
@@ -121,8 +118,7 @@ export class ViemDataProvider implements EvmDataProvider {
   }) {
     const events = sources
       .filter(
-        ({ startBlock: sourceStartBlock }) =>
-          sourceStartBlock <= endBlock && sourceStartBlock >= startBlock
+        ({ startBlock: sourceStartBlock }) => startBlock >= sourceStartBlock
       )
       .flatMap(({ abiEvents }) => abiEvents);
 

@@ -3,7 +3,7 @@ import pkg from "./package.json";
 import { runDev } from "./src/core/run-dev";
 import { defineCommand, runMain } from "citty";
 import { generateMigrations } from "./src/db/postgres/generate-migrations";
-import path from "node:path"
+import path from "node:path";
 
 const manifestArg = {
   type: "string",
@@ -30,17 +30,30 @@ const devCommand = defineCommand({
   args: {
     manifest: manifestArg,
     out: outArg,
-		db: {
-			type: 'string',
-			default: "postgres://postgres:postgres@localhost:5432/arkiver",
-			description: "Postgres connection string",
-			required: false,
-			valueHint: "postgres://user:pass@host:port/db",
-			alias: "d"
-		}
+    db: {
+      type: "string",
+      default: "postgres://postgres:postgres@localhost:5432/arkiver",
+      description: "Postgres connection string",
+      required: false,
+      valueHint: "postgres://user:pass@host:port/db",
+      alias: "d",
+    },
+    logLevel: {
+      type: "string",
+      default: "info",
+      description: "Log level",
+      required: false,
+      valueHint: "info|debug|trace",
+      alias: "l",
+    },
   },
   run: async ({ args }) => {
-    await runDev({ manifestPath: args.manifest, migrationsDir: args.out, pgConnectionString: args.db });
+    await runDev({
+      manifestPath: args.manifest,
+      migrationsDir: args.out,
+      pgConnectionString: args.db,
+      logLevel: args.logLevel,
+    });
   },
 });
 
@@ -53,12 +66,12 @@ const genCommand = defineCommand({
     out: outArg,
   },
   run: ({ args }) => {
-		const bunxExe = Bun.which("bunx");
-		if (!bunxExe) throw new Error("bun not installed.");
+    const bunxExe = Bun.which("bunx");
+    if (!bunxExe) throw new Error("bun not installed.");
     generateMigrations({
-			bunxExe,
+      bunxExe,
       migrationsDir: args.out,
-			schemaPath: path.join(process.cwd(), "__schema.ts")
+      schemaPath: path.join(process.cwd(), "__schema.ts"),
     });
   },
 });
