@@ -4,9 +4,10 @@
 - [X] Update example arkive
 - [ ] Use dockerode to startup postgres container in dev mode
 - [ ] Add CLI option to wipe db and reindex from scratch
-- [ ] Write build script using Bun bundler
+- [ ] Implement batched event handlers and add examples utilizing polars
 - [ ] Handle errors in evm data source
 - [ ] Refactor logging to use class method decorators
 - [ ] Implement data server
 - [ ] Build pretty terminal UI
+- [ ] Write build script using Bun bundler
 - [ ] Implement data caching
