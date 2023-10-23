@@ -4,53 +4,67 @@ import { ERC20_ABI } from "../abis/erc20";
 import { sql } from "drizzle-orm";
 import { formatUnits } from "viem";
 
+const decimalsCache: Record<string, Promise<number>> = {};
+
 export const onTransfer = eventHandler(
   {
     abi: ERC20_ABI,
     eventName: "Transfer",
     schema,
+    batchProcess: true,
   },
-  async ({ event, db, contract, logger, store }) => {
-    logger.info(
-      `Transfer: ${event.args.from} -> ${event.args.to} ${event.args.value}`
+  async ({ events, db, logger, client }) => {
+    logger.info(`Processing ${events.length} Transfer events`);
+
+    const accounts = events.reduce((acc, event) => {
+      const { from, to, value } = event.args;
+
+      const address = event.address;
+
+      const fromAccount = acc[from] ?? {};
+      const toAccount = acc[to] ?? {};
+
+      const fromBalance = fromAccount[address] ?? 0n;
+      const toBalance = toAccount[address] ?? 0n;
+
+      fromAccount[address] = fromBalance - value;
+      toAccount[address] = toBalance + value;
+
+      acc[from] = fromAccount;
+      acc[to] = toAccount;
+
+      return acc;
+    }, {} as Record<string, Record<string, bigint>>);
+
+    const formattedAccounts = await Promise.all(
+      Object.entries(accounts).flatMap(([address, account]) =>
+        Object.entries(account).map(async ([token, amount]) => {
+          const decimals = await (decimalsCache[token] ??= client.readContract({
+            abi: ERC20_ABI,
+            address: token as `0x${string}`,
+            functionName: "decimals",
+          }));
+
+          const parsedAmount = parseFloat(formatUnits(amount, decimals));
+
+          return {
+            id: `${address}-${token}`,
+            address,
+            token,
+            amount: parsedAmount,
+          };
+        })
+      )
     );
 
-    const { from, to, value } = event.args;
-
-    const address = event.address;
-
-    const decimals = await store.retrieve(
-      `decimals-${address}`,
-      contract.read.decimals
-    );
-
-    const parsedValue = parseFloat(formatUnits(value, decimals));
-
-    await Promise.all([
-      db
-        .insert(schema.balance)
-        .values({
-          id: `${from}-${address}`,
-          address: from,
-          token: address,
-          amount: -parsedValue,
-        })
-        .onConflictDoUpdate({
-          target: [schema.balance.id],
-          set: { amount: sql`${schema.balance.amount} - ${parsedValue}` },
-        }),
-      db
-        .insert(schema.balance)
-        .values({
-          id: `${to}-${address}`,
-          address: to,
-          token: address,
-          amount: parsedValue,
-        })
-        .onConflictDoUpdate({
-          target: [schema.balance.id],
-          set: { amount: sql`${schema.balance.amount} + ${parsedValue}` },
-        }),
-    ]);
+    await db
+      .insert(schema.balance)
+      .values(formattedAccounts)
+      .onConflictDoUpdate({
+        target: [schema.balance.id],
+        set: {
+          amount: sql`${schema.balance.amount} + excluded.amount`,
+        },
+      });
   }
 );

@@ -1,5 +1,5 @@
 import { Logger } from "pino";
-import { EvmDataQueue } from "./data-queue";
+import { BoundedData, EvmDataQueue } from "./data-queue";
 import { EvmDataFetcher } from "./data-fetcher";
 import { EvmHandlerRunner } from "./handler-runner";
 import { DbProvider } from "../../db-provider";
@@ -94,8 +94,8 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
       context: this.#context,
       loader,
       logger: this.#logger,
-			chain: this.#chain,
-			dbProvider: this.#dbProvider,
+      chain: this.#chain,
+      dbProvider: this.#dbProvider,
     });
 
     // TODO: listen for errors on dataFetcher and handle them
@@ -103,8 +103,8 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
     // connect components
     const handlerLock = new Mutex();
     dataFetcher.on("data", (data) => queue.push(data));
-		// handle sequential processing of data here so we can add an option later to process in parallel
-    queue.on("data", (data) =>
+    // handle sequential processing of data here so we can add an option later to process in parallel
+    queue.on("data", (data: BoundedData) =>
       handlerLock.runExclusive(
         async () => await handlerRunner.processData(data)
       )

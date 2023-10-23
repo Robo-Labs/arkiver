@@ -11,14 +11,13 @@ export type Data = {
   endBlock: bigint;
 };
 
+export type BoundedData = {
+  endBlock: bigint;
+  data: Data;
+};
+
 export class EvmDataQueue extends EventEmitter {
-  #buffer: Map<
-    bigint,
-    {
-      endBlock: bigint;
-      data: Data;
-    }
-  > = new Map();
+  #buffer: Map<bigint, BoundedData> = new Map();
   #logger?: Logger;
   #flushLock: Mutex = new Mutex();
   #blockCursor: bigint;
@@ -55,7 +54,7 @@ export class EvmDataQueue extends EventEmitter {
             endBlock: buffered.endBlock,
           },
         });
-        this.emit("data", buffered.data);
+        this.emit("data", buffered);
         this.#buffer.delete(this.#blockCursor);
         this.#blockCursor = buffered.endBlock + 1n;
         buffered = this.#buffer.get(this.#blockCursor);

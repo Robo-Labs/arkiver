@@ -41,7 +41,7 @@ export class Manifest<TContext extends {} = {}, TChains extends Chains = ""> {
   schema<TSchema extends Record<string, unknown>>(
     schema: TSchema
   ): Manifest<TContext & { db: PostgresJsDatabase<TSchema> }, TChains> {
-		this.manifest.schema = schema;
+    this.manifest.schema = schema;
     return this;
   }
 }
@@ -65,7 +65,7 @@ export interface Contract<TContext extends {}> {
   abi: Abi;
   sources: Record<string, bigint | "live">;
   factorySources: Record<string, Record<string, string>>;
-  events: Record<string, EventHandler<Abi, string, TContext>>;
+  events: Record<string, EventHandler<Abi, string, boolean, TContext>>;
   id: string;
 }
 

@@ -13,3 +13,9 @@ export type OmitByValue<T, Omitted> = FromEntries<
 export type PickByValue<T, Picked> = FromEntries<
   Extract<Entries<T>, [any, Picked]>
 >;
+
+export type Prettify<T> =
+  | {
+      [Key in keyof T]: T[Key];
+    }
+  | never;

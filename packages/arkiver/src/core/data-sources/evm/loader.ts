@@ -3,7 +3,12 @@ import { getAbiEvents } from "../../../utils/abi";
 import { bigintMin } from "../../../utils/bigint";
 import { Abi, AbiEvent } from "abitype";
 import { Logger } from "pino";
-import { DataSourceManifest, BlockHandler, Contract, BlockHandlerInfo } from "../../manifest-builder/manifest";
+import {
+  DataSourceManifest,
+  BlockHandler,
+  Contract,
+  BlockHandlerInfo,
+} from "../../manifest-builder/manifest";
 import { EventHandler } from "../../manifest-builder/event-handler";
 
 export interface ManifestLoaderParams<TContext extends {}> {
@@ -25,9 +30,9 @@ interface Sources<TContext extends {}> {
   }[];
 }
 
-interface AddressTopicInfo<TContext extends {}> {
+export interface AddressTopicInfo<TContext extends {}> {
   abi: Abi;
-  handler: EventHandler<Abi, string, TContext>;
+  handler: EventHandler<Abi, string, boolean, TContext>;
   contractId: string;
 }
 

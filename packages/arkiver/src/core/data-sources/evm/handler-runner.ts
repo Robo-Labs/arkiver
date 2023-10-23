@@ -1,6 +1,6 @@
 import { Abi, getContract } from "viem";
-import { Data } from "./data-queue";
-import { ManifestLoader } from "./loader";
+import { BoundedData, Data } from "./data-queue";
+import { AddressTopicInfo, ManifestLoader } from "./loader";
 import { Logger } from "pino";
 import { ArkiveClient } from "../../client";
 import { Store } from "../../../utils/store";
@@ -21,6 +21,16 @@ export interface EvmHandlerRunnerParams<TContext extends {}> {
   maxRetries?: number;
   retryDelayMs?: number;
 }
+
+type DiscreteLog<TContext extends {}> = {
+  log: Data["logs"][number];
+  logs?: never;
+} & AddressTopicInfo<TContext>;
+
+type GroupedLogs<TContext extends {}> = AddressTopicInfo<TContext> & {
+  logs: Data["logs"];
+  log?: never;
+};
 
 export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
   #client: ArkiveClient;
@@ -61,38 +71,89 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
     };
   }
 
-  async processData({ blocks, logs }: Data) {
+  async processData({ data: { blocks, logs }, endBlock }: BoundedData) {
     this.#logger?.debug({
       event: "evmHandlerRunner.processData",
       context: { blocks: blocks.length, logs: logs.length },
     });
-    const merged: (
-      | { number: bigint; blockNumber?: never }
-      | { number?: never; blockNumber: bigint }
-    )[] = [...blocks, ...logs];
-    const sorted = merged.sort((a, b) => {
-      const aBlock = a.blockNumber !== undefined ? a.blockNumber : a.number;
-      const bBlock = b.blockNumber !== undefined ? b.blockNumber : b.number;
 
-      return Number(aBlock - bBlock);
-    });
+    const batchLogs: Record<string, GroupedLogs<TContext>> = {};
+    const discreteLogs: DiscreteLog<TContext>[] = [];
 
-    for (const item of sorted) {
-      if (item.blockNumber !== undefined) {
-        // log
-        await this.#processLog(item as Data["logs"][number]);
+    for (const log of logs) {
+      const topic0 = log.topics[0];
+      const address = log.address;
+
+      let handler: EventHandler<Abi, string, boolean, TContext>;
+      let abi: Abi;
+      let contractId: string;
+
+      const specific = this.#loader.addressTopicHandlerMap.get(
+        `${address}-${topic0}`.toLocaleLowerCase()
+      );
+
+      if (specific !== undefined) {
+        handler = specific.handler;
+        abi = specific.abi;
+        contractId = specific.contractId;
       } else {
-        // block
-        await this.#processBlock(item as Data["blocks"][number]);
+        if (!topic0) {
+          this.#logger?.warn({
+            source: "evmHandlerRunner.#processLog",
+            context: { log },
+            warning: "topic0-not-found",
+          });
+          continue;
+        }
+
+        const wildcard = this.#loader.addressTopicHandlerMap.get(
+          topic0.toLowerCase()
+        );
+        if (wildcard === undefined) {
+          this.#logger?.warn({
+            source: "evmHandlerRunner.#processLog",
+            context: { log },
+            warning: "unexpected-topic0",
+          });
+          continue;
+        }
+
+        handler = wildcard.handler;
+        abi = wildcard.abi;
+        contractId = wildcard.contractId;
+      }
+
+      const isBatchProcess = handler._batchProcess;
+
+      if (isBatchProcess) {
+        const id = `${contractId}-${topic0}`;
+
+        const existingGroup = batchLogs[id];
+
+        if (existingGroup) {
+          existingGroup.logs.push(log);
+          continue;
+        }
+
+        batchLogs[id] = {
+          abi,
+          contractId,
+          handler,
+          logs: [log],
+        };
+      } else {
+        discreteLogs.push({ log, abi, contractId, handler });
       }
     }
 
-    const end = sorted.at(-1);
-    const endBlock = end?.blockNumber ?? end?.number;
+    await Promise.all([
+      this.#processDiscrete(discreteLogs, blocks),
+      this.#processBatch(batchLogs),
+    ]);
 
     await Promise.all([
       (async () => {
-        if (endBlock && endBlock > this.#highestProcessedBlock) {
+        if (endBlock > this.#highestProcessedBlock) {
           this.#highestProcessedBlock = endBlock;
           await this.#dbProvider.updateChainBlock({
             chain: this.#chain,
@@ -116,53 +177,60 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
     ]);
   }
 
-  async #processLog(log: Data["logs"][number]) {
-    const topic0 = log.topics[0];
-    const address = log.address;
-
-    let handler: EventHandler<Abi, string, TContext>;
-    let abi: Abi;
-    let contractId: string;
-
-    const specific = this.#loader.addressTopicHandlerMap.get(
-      `${address}-${topic0}`.toLocaleLowerCase()
+  async #processBatch(groupedLogs: Record<string, GroupedLogs<TContext>>) {
+    await Promise.all(
+      Object.values(groupedLogs).map(this.#processLog.bind(this))
     );
-    if (specific !== undefined) {
-      handler = specific.handler;
-      abi = specific.abi;
-      contractId = specific.contractId;
-    } else {
-      if (!topic0) {
-        this.#logger?.warn({
-          source: "evmHandlerRunner.#processLog",
-          context: { log },
-          warning: "topic0-not-found",
-        });
-        return;
+  }
+
+  async #processDiscrete(
+    logs: DiscreteLog<TContext>[],
+    blocks: Data["blocks"]
+  ) {
+    const merged: (
+      | { number: bigint; log?: never }
+      | { number?: never; log: { blockNumber: bigint } }
+    )[] = [...blocks, ...logs];
+
+    const sorted = merged.sort((a, b) => {
+      const aBlock =
+        a.log?.blockNumber !== undefined ? a.log.blockNumber : a.number;
+      const bBlock =
+        b.log?.blockNumber !== undefined ? b.log.blockNumber : b.number;
+
+      if (aBlock === undefined || bBlock === undefined) {
+        throw new Error("Unexpected undefined block number");
       }
 
-      const wildcard = this.#loader.addressTopicHandlerMap.get(
-        topic0.toLowerCase()
-      );
-      if (wildcard === undefined) {
-        this.#logger?.warn({
-          source: "evmHandlerRunner.#processLog",
-          context: { log },
-          warning: "unexpected-topic0",
-        });
-        return;
-      }
-
-      handler = wildcard.handler;
-      abi = wildcard.abi;
-      contractId = wildcard.contractId;
-    }
-
-    const contract = getContract({
-      abi,
-      address,
-      publicClient: this.#client,
+      return Number(aBlock - bBlock);
     });
+
+    for (const item of sorted) {
+      if (item.log?.blockNumber !== undefined) {
+        // log
+        await this.#processLog(item as DiscreteLog<TContext>);
+      } else {
+        // block
+        await this.#processBlock(item as Data["blocks"][number]);
+      }
+    }
+  }
+
+  async #processLog({
+    log,
+    logs,
+    abi,
+    contractId,
+    handler,
+  }: DiscreteLog<TContext> | GroupedLogs<TContext>) {
+    const contract = log
+      ? getContract({
+          abi,
+          address: log.address,
+          publicClient: this.#client,
+        })
+      : undefined;
+
     try {
       await retry({
         callback: async () =>
@@ -172,15 +240,17 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
             contract,
             event: log,
             logger: this.#logger!.child({
-              event: log.eventName,
+              event: log?.eventName ?? logs?.[0].eventName,
               contract: contractId,
             }),
             store: this.#store,
+            events: logs,
           }),
         maxRetries: this.#config.maxRetries,
         retryDelayMs: this.#config.retryDelayMs,
       });
     } catch (error) {
+      console.error(error);
       this.emit("error", error);
     }
   }
