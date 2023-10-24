@@ -28,6 +28,8 @@
     "genmigr": "bunx drizzle-kit generate:sqlite --schema ./src/core/tables --out ./src/core/tables/migrations"
   },
   "devDependencies": {
+    "@types/blessed": "^0.1.24",
+    "@types/dockerode": "^3.3.21",
     "abitype": "^0.9.8",
     "bun-types": "latest",
     "citty": "^0.1.4",
@@ -38,13 +40,18 @@
   },
   "dependencies": {
     "async-mutex": "^0.4.0",
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
+    "dockerode": "^4.0.0",
     "drizzle-kit": "^0.19.13",
     "drizzle-orm": "^0.28.6",
     "eventemitter3": "^5.0.1",
     "lru-cache": "^10.0.1",
     "pg": "^8.11.3",
     "pino": "^8.15.1",
+    "pino-abstract-transport": "^1.1.0",
     "postgres": "3.3.5",
+    "ts-node": "^10.9.1",
     "viem": "^1.12.0"
   }
 }

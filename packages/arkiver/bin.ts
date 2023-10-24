@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import pkg from "./package.json";
-import { runDev } from "./src/core/run-dev";
+import { runDev } from "./src/cli/run-dev";
 import { defineCommand, runMain } from "citty";
 import { generateMigrations } from "./src/db/postgres/generate-migrations";
 import path from "node:path";

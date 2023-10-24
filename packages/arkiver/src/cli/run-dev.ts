@@ -1,17 +1,17 @@
 import { drizzle as bunsqliteDrizzle } from "drizzle-orm/bun-sqlite";
 import { generateMigrations } from "../db/postgres/generate-migrations";
 import Database from "bun:sqlite";
-import { arkiveMetadata } from "./tables/arkive-metadata";
-import { chainMetadata } from "./tables/chain-metadata";
-import { childSource } from "./tables/child-source";
-import { BunSqliteProvider } from "./db-provider";
+import { arkiveMetadata } from "../core/tables/arkive-metadata";
+import { chainMetadata } from "../core/tables/chain-metadata";
+import { childSource } from "../core/tables/child-source";
+import { BunSqliteProvider } from "../core/db-provider";
 import pino from "pino";
 import { drizzle as postgresjsDrizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import path from "path";
-import { Arkiver } from "./arkiver";
-import { Manifest } from ".";
+import { Arkiver } from "../core/arkiver";
+import { Manifest } from "../core";
 import { reexportSchema } from "../db/postgres/reexport-schema";
 import { runStudio } from "../db/postgres/run-studio";
 
@@ -19,14 +19,14 @@ export const runDev = async ({
   manifestPath,
   migrationsDir,
   pgConnectionString,
-	logLevel
+  logLevel,
 }: {
   manifestPath: string;
   migrationsDir: string;
   pgConnectionString: string;
-	logLevel: string
+  logLevel: string;
 }) => {
-	console.clear()
+  console.clear();
   const cwd = process.cwd();
   const bunxExe = Bun.which("bunx");
   if (!bunxExe) throw new Error("bun not installed.");
@@ -47,7 +47,10 @@ export const runDev = async ({
   }
 
   // arkiver initialization
-  const logger = pino({ transport: { target: "pino-pretty" }, level: logLevel });
+  const logger = pino({
+    transport: { target: "pino-pretty" },
+    level: logLevel,
+  });
 
   const sqlite = bunsqliteDrizzle(new Database("arkiver.sqlite"), {
     schema: { arkiveMetadata, chainMetadata, childSource },
@@ -69,11 +72,11 @@ export const runDev = async ({
 
   await arkiver.start();
 
-	await runStudio({
-		bunxExe,
-		connectionString: pgConnectionString,
-		schemaPath
-	})
+  await runStudio({
+    bunxExe,
+    connectionString: pgConnectionString,
+    schemaPath,
+  });
 
-  deleteFile()
+  deleteFile();
 };
