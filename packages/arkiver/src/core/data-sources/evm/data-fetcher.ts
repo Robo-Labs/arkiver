@@ -7,6 +7,7 @@ import { Data } from "./data-queue";
 import { retry } from "../../../utils/promise";
 import { WatchBlockNumberReturnType } from "viem";
 import { DbProvider } from "../../db-provider";
+import { Mutex } from "async-mutex";
 
 export interface EvmDataFetcherParams {
   loader: ManifestLoader<any>;
@@ -40,6 +41,7 @@ export class EvmDataFetcher extends EventEmitter {
   #highestFetchedBlock = 0n;
   #totalLogsFetched = 0;
   #totalBlocksFetched = 0;
+  #newBlockLock = new Mutex();
   unwatch?: WatchBlockNumberReturnType;
   #logger?: Logger;
 
@@ -139,29 +141,37 @@ export class EvmDataFetcher extends EventEmitter {
   }
 
   async #startLiveBlockProcess() {
+    const logger = this.#logger;
+    const lock = this.#newBlockLock;
     this.unwatch = this.#dataProvider.onBlock(
       async (newBlock) => {
-        let startBlock = this.#latestBlock + 1n;
-        if (startBlock > newBlock) return;
-        while (true) {
-          // lowest of either the end of the range or the latest block
-          const rangeEnd = startBlock + this.#config.blockRange - 1n;
-          const endBlock = bigintMin(rangeEnd, newBlock);
-          try {
-            await this.#processBlock(startBlock, endBlock);
-          } catch (error) {
-            this.emit("error", error);
-            return;
+        await lock.acquire();
+        try {
+          logger?.info(`New block: ${newBlock}`);
+          let startBlock = this.#latestBlock + 1n;
+          if (startBlock > newBlock) return;
+          while (true) {
+            // lowest of either the end of the range or the latest block
+            const rangeEnd = startBlock + this.#config.blockRange - 1n;
+            const endBlock = bigintMin(rangeEnd, newBlock);
+            try {
+              await this.#processBlock(startBlock, endBlock);
+            } catch (error) {
+              this.emit("error", error);
+              return;
+            }
+            // if we've reached the end of the range, break
+            if (rangeEnd > newBlock) break;
+            startBlock += this.#config.blockRange;
           }
-          // if we've reached the end of the range, break
-          if (rangeEnd > newBlock) break;
-          startBlock += this.#config.blockRange;
-        }
-        this.#latestBlock = newBlock;
+          this.#latestBlock = newBlock;
 
-        if (newBlock > this.#highestFetchedBlock) {
-          this.#highestFetchedBlock = newBlock;
-          await this.#updateDb();
+          if (newBlock > this.#highestFetchedBlock) {
+            this.#highestFetchedBlock = newBlock;
+            await this.#updateDb();
+          }
+        } finally {
+          lock.release();
         }
       },
       (error) => {
@@ -226,20 +236,22 @@ export class EvmDataFetcher extends EventEmitter {
         blockHeight: this.#highestFetchedBlock,
         column: "highestFetchedBlock",
       }),
-			this.#totalLogsFetched > 0 && this.#dbProvider.incrementMetadataValue({
-				chain: this.#chain,
-				value: this.#totalLogsFetched,
-				column: 'totalLogsFetched'
-			}),
-			this.#totalBlocksFetched > 0 && this.#dbProvider.incrementMetadataValue({
-				chain: this.#chain,
-				value: this.#totalBlocksFetched,
-				column: 'totalBlocksFetched'
-			})
+      this.#totalLogsFetched > 0 &&
+        this.#dbProvider.incrementMetadataValue({
+          chain: this.#chain,
+          value: this.#totalLogsFetched,
+          column: "totalLogsFetched",
+        }),
+      this.#totalBlocksFetched > 0 &&
+        this.#dbProvider.incrementMetadataValue({
+          chain: this.#chain,
+          value: this.#totalBlocksFetched,
+          column: "totalBlocksFetched",
+        }),
     ]);
 
-		this.#totalLogsFetched = 0;
-		this.#totalBlocksFetched = 0;
+    this.#totalLogsFetched = 0;
+    this.#totalBlocksFetched = 0;
   }
 
   stop() {
