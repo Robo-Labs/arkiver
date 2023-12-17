@@ -33,7 +33,7 @@ export const createTable = <
 		let relation: Referral | undefined;
 
 		switch (true) {
-			case /^\[\]@/.test(value): {
+			case value.startsWith('[]@'): {
 				// don't add a column for backrefs
 				relation = {
 					referred: value.replace(/^\[\]@/, ""),
@@ -41,7 +41,7 @@ export const createTable = <
 				};
 				break;
 			}
-			case /^@/.test(value): {
+			case value.startsWith('@'): {
 				const [referred, type] = value
 					.replace(/^@/, "")
 					.replace(/\?$/, "")

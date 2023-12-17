@@ -1,6 +1,6 @@
 {
   "name": "arkiver",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Data framework for Ethereum designed for speed and ergonomics.",
   "module": "./src/index.ts",
   "types": "./src/index.d.ts",
@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "@types/blessed": "^0.1.24",
-    "@types/dockerode": "^3.3.21",
     "abitype": "^0.9.8",
     "bun-types": "latest",
     "citty": "^0.1.4",
@@ -42,7 +41,6 @@
     "async-mutex": "^0.4.0",
     "blessed": "^0.1.81",
     "blessed-contrib": "^4.11.0",
-    "dockerode": "^4.0.0",
     "drizzle-kit": "^0.20.6",
     "drizzle-orm": "^0.29.1",
     "eventemitter3": "^5.0.1",

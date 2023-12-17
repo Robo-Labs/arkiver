@@ -91,7 +91,7 @@ export class EvmDataFetcher extends EventEmitter {
   }
 
   async #startBatchProcess(startBlock: bigint) {
-    const workers = [...new Array(this.#config.concurrency)];
+    const workers = new Array(this.#config.concurrency).fill(0);
     let contUpdateDbLoop = true;
     const updateDbLoop = async () => {
       if (!contUpdateDbLoop) return;
@@ -181,52 +181,48 @@ export class EvmDataFetcher extends EventEmitter {
   }
 
   async #processBlock(startBlock: bigint, endBlock: bigint) {
-    try {
-      const res = await retry({
-        callback: () =>
-          Promise.all([
-            this.#dataProvider.fetchSpecificLogs({
-              startBlock,
-              endBlock,
-              contracts: this.#loader.sources.specific,
-            }),
-            this.#dataProvider.fetchWildcardLogs({
-              startBlock,
-              endBlock,
-              sources: this.#loader.sources.wildcard,
-            }),
-            this.#dataProvider.fetchBlocks({
-              startBlock,
-              endBlock,
-              sources: this.#loader.sources.blocks,
-            }),
-          ]),
-        maxRetries: this.#config.maxRetries,
-        retryDelayMs: this.#config.retryDelayMs,
-      });
+    const res = await retry({
+      callback: () =>
+        Promise.all([
+          this.#dataProvider.fetchSpecificLogs({
+            startBlock,
+            endBlock,
+            contracts: this.#loader.sources.specific,
+          }),
+          this.#dataProvider.fetchWildcardLogs({
+            startBlock,
+            endBlock,
+            sources: this.#loader.sources.wildcard,
+          }),
+          this.#dataProvider.fetchBlocks({
+            startBlock,
+            endBlock,
+            sources: this.#loader.sources.blocks,
+          }),
+        ]),
+      maxRetries: this.#config.maxRetries,
+      retryDelayMs: this.#config.retryDelayMs,
+    });
 
-      this.#logger?.debug({
-        event: "evmDataFetcher.#processBlock",
-        context: {
-          startBlock,
-          endBlock,
-          logs: res[0].length + res[1].length,
-          blocks: res[2].length,
-        },
-      });
-
-      this.emit("data", {
-        logs: res[0].concat(res[1]),
-        blocks: res[2],
+    this.#logger?.debug({
+      event: "evmDataFetcher.#processBlock",
+      context: {
         startBlock,
         endBlock,
-      } satisfies Data);
+        logs: res[0].length + res[1].length,
+        blocks: res[2].length,
+      },
+    });
 
-      this.#totalLogsFetched += res[0].length + res[1].length;
-      this.#totalBlocksFetched += res[2].length;
-    } catch (error) {
-      throw error;
-    }
+    this.emit("data", {
+      logs: res[0].concat(res[1]),
+      blocks: res[2],
+      startBlock,
+      endBlock,
+    } satisfies Data);
+
+    this.#totalLogsFetched += res[0].length + res[1].length;
+    this.#totalBlocksFetched += res[2].length;
   }
 
   async #updateDb() {

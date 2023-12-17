@@ -47,8 +47,6 @@ export class Arkiver<TContext extends {}> {
   async #initDataSources() {
     this.#logger?.info({ event: "arkiver.initDataSources" });
 
-    const childSources = await this.#dbProvider.getChildSource();
-
     await Promise.all(
       Object.entries(this.#manifest.dataSources).map(
         async ([chain, dataSourceManifest]) => {
@@ -58,6 +56,8 @@ export class Arkiver<TContext extends {}> {
             event: "arkiver.initDataSources",
             context: { chain },
           });
+
+					const childSources = await this.#dbProvider.getChildSource(chain);
 
           const contract = mergeContracts(
             dataSourceManifest.contracts,
