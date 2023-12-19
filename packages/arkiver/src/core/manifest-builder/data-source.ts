@@ -125,7 +125,6 @@ export interface AddContractParams<
     [eventName in ExtractAbiEventNames<TAbi>]: EventHandler<
       TAbi,
       eventName,
-      boolean,
       TContext
     >;
   }>;

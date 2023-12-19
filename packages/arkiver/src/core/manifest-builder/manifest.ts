@@ -5,67 +5,45 @@ import { DataSourceBuilder } from "./data-source";
 import { Store } from "../../utils/store";
 import { supportedChains } from "../chains";
 import { ArkiveClient } from "../client";
-import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
-import { EventHandler } from "./event-handler";
+import { EventHandler, EventHandlerHook } from "./event-handler";
 
-export const manifestVersion = "v1";
+// export class Manifest<TStore extends {} = {}, TChains extends string = ""> {
+//   manifest: ArkiveManifest<TStore>;
 
-export class Manifest<TContext extends {} = {}, TChains extends Chains = ""> {
-  manifest: ArkiveManifest<TContext>;
+//   constructor() {
+//     this.manifest = {
+//       dataSources: {},
+//     };
+//   }
 
-  constructor(name: string) {
-    if (name.search(/[^a-zA-Z0-9_-]/g) !== -1) {
-      throw new Error(`Invalid name: ${name}`);
-    }
-    const formattedName = name.replace(" ", "-").toLowerCase();
+//   chain<TChain extends Exclude<Chains, TChains>>(
+//     chain: TChain,
+//     builderFn: (builder: DataSourceBuilder<{}, TStore>) => void
+//   ): Manifest<TStore, TChains | TChain> {
+//     builderFn(new DataSourceBuilder(this, chain));
+//     if (this.manifest.dataSources[chain]?.options.rpcUrls.length === 0) {
+//       throw new Error(`At least one RPC URL is required for chain ${chain}`);
+//     }
+//     return this;
+//   }
+// }
 
-    this.manifest = {
-      name: formattedName,
-      version: manifestVersion,
-      dataSources: {},
-      schema: {},
-    };
-  }
-
-  chain<TChain extends Exclude<Chains, TChains>>(
-    chain: TChain,
-    builderFn: (builder: DataSourceBuilder<{}, TContext>) => void
-  ): Manifest<TContext, TChains | TChain> {
-    builderFn(new DataSourceBuilder(this, chain));
-    if (this.manifest.dataSources[chain]?.options.rpcUrls.length === 0) {
-      throw new Error(`At least one RPC URL is required for chain ${chain}`);
-    }
-    return this;
-  }
-
-  schema<TSchema extends Record<string, unknown>>(
-    schema: TSchema
-  ): Manifest<TContext & { db: PostgresJsDatabase<TSchema> }, TChains> {
-    this.manifest.schema = schema;
-    return this;
-  }
+export interface ArkiveManifest<TStore extends {}> {
+  dataSources: Record<string, DataSourceManifest<TStore>>;
 }
 
-export type Chains = keyof typeof supportedChains | (string & {});
-
-export interface ArkiveManifest<TContext extends {}> {
-  dataSources: Partial<Record<Chains, DataSourceManifest<TContext>>>;
-  schema: Record<string, unknown>;
-  name: string;
-  version: string;
-}
-
-export interface DataSourceManifest<TContext extends {}> {
-  contracts: Record<string, Contract<TContext>>;
-  blockHandlers: BlockHandlerInfo<TContext>[];
+export interface DataSourceManifest<TStore extends {}> {
+  contracts: Record<string, Contract<TStore>>;
   options: ChainOptions;
+	beforeHandle?: EventHandlerHook<TStore>;
+	afterHandle?: EventHandlerHook<TStore>;
 }
 
-export interface Contract<TContext extends {}> {
+export interface Contract<TStore extends {}> {
   abi: Abi;
   sources: Record<string, bigint | "live">;
   factorySources: Record<string, Record<string, string>>;
-  events: Record<string, EventHandler<Abi, string, boolean, TContext>>;
+  events: Record<string, EventHandler<Abi, string, TStore>>;
   id: string;
 }
 
@@ -74,8 +52,8 @@ export interface ChainOptions {
   rpcUrls: string[];
 }
 
-export interface BlockHandlerInfo<TContext extends {}> {
-  handler: BlockHandler<TContext>;
+export interface BlockHandlerInfo<TStore extends {}> {
+  handler: BlockHandler<TStore>;
   startBlockHeight: bigint | "live";
   blockInterval: bigint;
   name: string;
