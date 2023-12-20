@@ -5,86 +5,73 @@ import { Abi, AbiEvent } from "abitype";
 import { Logger } from "pino";
 import {
   DataSourceManifest,
-  BlockHandler,
   Contract,
-  BlockHandlerInfo,
-} from "../../manifest-builder/manifest";
-import { EventHandler } from "../../manifest-builder/event-handler";
+} from "../../manifest";
+import { EventHandler } from "../../event-handler";
 
-export interface ManifestLoaderParams<TContext extends {}> {
+export interface ManifestLoaderParams<TStore extends {}> {
   latestBlock: bigint;
-  dataSourceManifest: DataSourceManifest<TContext>;
+  dataSourceManifest: DataSourceManifest<TStore>;
   logger?: Logger;
 }
 
-interface Sources<TContext extends {}> {
+interface Sources<TStore extends {}> {
   wildcard: { startBlock: bigint; abiEvents: AbiEvent[] }[];
   specific: {
     sources: Record<string, bigint>;
     abiEvents: AbiEvent[];
   }[];
-  blocks: {
-    startBlock: bigint;
-    interval: bigint;
-    handler: BlockHandler<TContext>;
-  }[];
 }
 
-export interface AddressTopicInfo<TContext extends {}> {
+export interface AddressTopicInfo<TStore extends {}> {
   abi: Abi;
-  handler: EventHandler<Abi, string, boolean, TContext>;
+  handler: EventHandler<Abi, string, string, TStore>;
   contractId: string;
 }
 
-export class ManifestLoader<TContext extends {}> {
-  #contracts: Record<string, Contract<TContext>>;
-  #blockHandlers: BlockHandlerInfo<TContext>[];
+export class ManifestLoader<TStore extends {}> {
+  #contracts: Record<string, Contract<TStore>>;
   #latestBlock: bigint;
   #logger?: Logger;
   contractsLowestBlock: bigint;
-  blocksLowestBlock: bigint;
-  sources: Sources<TContext>;
+  sources: Sources<TStore>;
   addressTopicHandlerMap: Map<
     string, // specific: address-topic0, wildcard: topic0
-    AddressTopicInfo<TContext>
+    AddressTopicInfo<TStore>
   >;
 
   constructor({
     dataSourceManifest,
     latestBlock,
     logger,
-  }: ManifestLoaderParams<TContext>) {
+  }: ManifestLoaderParams<TStore>) {
     this.#latestBlock = latestBlock;
     this.#contracts = dataSourceManifest.contracts;
-    this.#blockHandlers = dataSourceManifest.blockHandlers;
     this.#logger = logger;
     const {
       contractsLowestBlock,
       sources: contractSources,
       addressTopicHandlerMap,
     } = this.#loadContracts();
-    const { blocksLowestBlock, sources: blockSources } = this.#loadBlocks();
 
     this.contractsLowestBlock = contractsLowestBlock;
-    this.blocksLowestBlock = blocksLowestBlock;
 
     this.sources = {
       wildcard: contractSources.wildcard,
       specific: contractSources.specific,
-      blocks: blockSources.blocks,
     };
     this.addressTopicHandlerMap = addressTopicHandlerMap;
   }
 
   #loadContracts() {
     let contractsLowestBlock = maxUint256;
-    const sourcesRes: Omit<Sources<TContext>, "blocks"> = {
+    const sourcesRes: Omit<Sources<TStore>, "blocks"> = {
       wildcard: [],
       specific: [],
     };
     const addressTopicHandlerMap = new Map<
       string,
-      AddressTopicInfo<TContext>
+      AddressTopicInfo<TStore>
     >();
 
     for (const contract of Object.values(this.#contracts)) {
@@ -198,31 +185,5 @@ export class ManifestLoader<TContext extends {}> {
       sources: sourcesRes,
       addressTopicHandlerMap,
     };
-  }
-
-  #loadBlocks() {
-    let blocksLowestBlock = maxUint256;
-    const sourcesRes: Pick<Sources<TContext>, "blocks"> = {
-      blocks: [],
-    };
-
-    for (const blockHandlerInfo of this.#blockHandlers) {
-      const startBlock =
-        blockHandlerInfo.startBlockHeight === "live"
-          ? this.#latestBlock
-          : blockHandlerInfo.startBlockHeight;
-
-      sourcesRes.blocks.push({
-        interval: blockHandlerInfo.blockInterval,
-        startBlock,
-        handler: blockHandlerInfo.handler,
-      });
-
-      if (startBlock < blocksLowestBlock) {
-        blocksLowestBlock = startBlock;
-      }
-    }
-
-    return { blocksLowestBlock, sources: sourcesRes };
   }
 }

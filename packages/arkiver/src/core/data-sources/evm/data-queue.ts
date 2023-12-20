@@ -6,12 +6,12 @@ import { GetBlockReturnType, GetLogsReturnType } from "viem";
 
 export type Data = {
   logs: GetLogsReturnType<undefined, AbiEvent[], true, bigint, bigint>;
-  blocks: GetBlockReturnType[];
   startBlock: bigint;
   endBlock: bigint;
 };
 
 export type BoundedData = {
+	startBlock: bigint;
   endBlock: bigint;
   data: Data;
 };
@@ -28,12 +28,12 @@ export class EvmDataQueue extends EventEmitter {
     this.#blockCursor = startBlock;
   }
 
-  push({ logs, blocks, endBlock, startBlock }: Data) {
+  push({ logs, endBlock, startBlock }: Data) {
     this.#buffer.set(startBlock, {
+			startBlock,
       endBlock,
       data: {
         logs,
-        blocks,
         startBlock,
         endBlock,
       },

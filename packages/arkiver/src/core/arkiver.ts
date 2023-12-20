@@ -1,25 +1,23 @@
 import { Logger } from "pino";
-import { ArkiveManifest, Contract } from "./manifest-builder/manifest";
+import { ArkiveManifest, Contract } from "./manifest";
 import { ArkiveRecord } from "./record";
 import { DbProvider } from "./db-provider";
 import { childSource } from "./tables/child-source";
 import { EvmDataSource } from "./data-sources/evm/evm";
 
-export interface ArkiverParams<TContext extends {}> {
-  manifest: ArkiveManifest<TContext>;
+export interface ArkiverParams<TStore extends {}> {
+  manifest: ArkiveManifest<TStore>;
   dbProvider: DbProvider;
-  record?: ArkiveRecord;
-  context: TContext;
+  context: TStore;
   logger?: Logger;
   rpcUrls?: Record<string, string[]>;
 }
 
-export class Arkiver<TContext extends {}> {
-  #manifest: ArkiveManifest<TContext>;
+export class Arkiver<TStore extends {}> {
+  #manifest: ArkiveManifest<TStore>;
   #dbProvider: DbProvider;
-  #record?: ArkiveRecord;
-  #context: TContext;
-  #dataSources: EvmDataSource<TContext>[] = [];
+  #context: TStore;
+  #dataSources: EvmDataSource<TStore>[] = [];
   #rpcUrls?: Record<string, string[]>;
   #logger?: Logger;
 
@@ -27,14 +25,12 @@ export class Arkiver<TContext extends {}> {
     dbProvider,
     manifest,
     rpcUrls,
-    record,
     context,
     logger,
-  }: ArkiverParams<TContext>) {
+  }: ArkiverParams<TStore>) {
     this.#manifest = manifest;
     this.#rpcUrls = rpcUrls;
     this.#dbProvider = dbProvider;
-    this.#record = record;
     this.#context = context;
     this.#logger = logger;
   }
@@ -78,7 +74,6 @@ export class Arkiver<TContext extends {}> {
             context: this.#context,
             dataSourceManifest,
             dbProvider: this.#dbProvider,
-            record: this.#record,
             logger: this.#logger,
           });
 
@@ -104,8 +99,8 @@ export class Arkiver<TContext extends {}> {
   }
 }
 
-const mergeContracts = <TContext extends {}>(
-  contracts: Record<string, Contract<TContext>>,
+const mergeContracts = <TStore extends {}>(
+  contracts: Record<string, Contract<TStore>>,
   childSources: (typeof childSource.$inferSelect)[]
 ) => {
   if (!contracts) {

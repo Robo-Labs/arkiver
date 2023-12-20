@@ -8,39 +8,36 @@ import { ManifestLoader } from "./loader";
 import { bigintMax, bigintMin } from "../../../utils/bigint";
 import EventEmitter from "eventemitter3";
 import { createArkiveClient } from "../../client";
-import { DataSourceManifest } from "../../manifest-builder/manifest";
+import { DataSourceManifest } from "../../manifest";
 import { ArkiveRecord } from "../../record";
 import { Mutex } from "async-mutex";
 
-export interface EvmDataSourceParams<TContext extends {}> {
+export interface EvmDataSourceParams<TStore extends {}> {
   chain: string;
   record?: ArkiveRecord;
-  dataSourceManifest: DataSourceManifest<TContext>;
+  dataSourceManifest: DataSourceManifest<TStore>;
   dbProvider: DbProvider;
-  context: TContext;
+  context: TStore;
   logger?: Logger;
 }
 
-export class EvmDataSource<TContext extends {}> extends EventEmitter {
+export class EvmDataSource<TStore extends {}> extends EventEmitter {
   #chain: string;
-  #record?: ArkiveRecord;
-  #dataSourceManifest: DataSourceManifest<TContext>;
+  #dataSourceManifest: DataSourceManifest<TStore>;
   #dbProvider: DbProvider;
-  #context: TContext;
+  #context: TStore;
   #dataFetcher?: EvmDataFetcher;
   #logger?: Logger;
 
   constructor({
     chain,
-    record,
     dataSourceManifest,
     logger,
     dbProvider,
     context,
-  }: EvmDataSourceParams<TContext>) {
+  }: EvmDataSourceParams<TStore>) {
     super();
     this.#chain = chain;
-    this.#record = record;
     this.#dataSourceManifest = dataSourceManifest;
     this.#logger = logger;
     this.#dbProvider = dbProvider;
@@ -71,11 +68,9 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
 
     // determine startblock
     const contractsLowestBlock = loader.contractsLowestBlock;
-    const blocksLowestBlock = loader.blocksLowestBlock;
-    const lowestBlock = bigintMin(contractsLowestBlock, blocksLowestBlock);
     const highestProcessedBlock =
       await this.#dbProvider.getHighestProcessedBlock(this.#chain);
-    const startBlock = bigintMax(lowestBlock, highestProcessedBlock);
+    const startBlock = bigintMax(contractsLowestBlock, highestProcessedBlock);
 
     //instantiate queue, data fetcher, handler runner
     const queue = new EvmDataQueue({ logger: this.#logger, startBlock });
@@ -96,6 +91,10 @@ export class EvmDataSource<TContext extends {}> extends EventEmitter {
       logger: this.#logger,
       chain: this.#chain,
       dbProvider: this.#dbProvider,
+			hooks: {
+				afterHandle: this.#dataSourceManifest.afterHandle,
+				beforeHandle: this.#dataSourceManifest.beforeHandle,
+			}
     });
 
     // TODO: listen for errors on dataFetcher and handle them

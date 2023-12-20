@@ -1,37 +1,56 @@
-import { Abi, AbiEvent, ExtractAbiEvent, ExtractAbiEventNames } from "abitype";
+import { Abi, AbiEventParameter, AbiType, ExtractAbiEventNames, ExtractAbiEvents } from "abitype";
 import {
   ArkiveManifest,
   DataSourceManifest,
-} from "./manifest-builder/manifest";
+} from "./manifest";
 import deepMerge from "ts-deepmerge";
 import {
   EventHandler,
   EventHandlerHook,
-} from "./manifest-builder/event-handler";
-import { MapAbiEventToArgsWithType } from "./manifest-builder/data-source";
+} from "./event-handler";
+import { Arkiver } from "./arkiver";
+import { BunSqliteProvider } from "./db-provider";
+import { Logger, pino, Level } from "pino";
+import { drizzle } from "drizzle-orm/bun-sqlite";
+import Database from "bun:sqlite";
+import { arkiveMetadata, chainMetadata, childSource } from "./tables";
 
-export interface ArkiveSettings {}
+export type MapAbiEventToArgsWithType<
+  TAbi extends Abi,
+  TType extends AbiType
+> = {
+  [TEvent in ExtractAbiEvents<TAbi> as TEvent["name"]]?: TEvent["inputs"][number] extends infer TEventInput extends AbiEventParameter
+    ? TEventInput extends { type: TType }
+      ? TEventInput["name"]
+      : never
+    : never;
+};
+
+export interface ArkiveSettings {
+  logger?: Logger;
+  logLevel?: Level;
+}
 
 export interface ContractParams<
   TAbi extends Abi,
   TChains extends string,
   TContracts extends Record<string, { abi: Abi; chains: string }>,
-  TStore extends {}
+  TStore extends {},
+  TSources extends Partial<Record<TChains, ContractSourceParams[]>>
 > {
   abi: TAbi;
   events: {
     [EventName in ExtractAbiEventNames<TAbi>]?: EventParams<
       TAbi,
       EventName,
+      Extract<keyof TSources, string>,
       TStore
     >;
   };
-  sources?: {
-    [key in TChains]?: ContractSourceParams;
-  };
+  sources?: TSources;
   factorySources?: {
     [Contract in keyof TContracts]?: {
-      chains: TContracts[Contract]["chains"][];
+      chains: TContracts[Contract]["chains"][] | "all";
       events: MapAbiEventToArgsWithType<TContracts[Contract]["abi"], "address">;
     };
   };
@@ -45,25 +64,21 @@ export interface ContractSourceParams {
 export type EventParams<
   TAbi extends Abi,
   TEventName extends ExtractAbiEventNames<TAbi>,
+  TChains extends string,
   TStore extends {} = {}
 > = {
-  handler: EventHandler<TAbi, TEventName, TStore>;
+  handler: EventHandler<TAbi, TEventName, TChains, TStore>;
 };
 
-export interface ChainParams<TStore> {
-  rpcUrls: [string, ...string[]];
+export interface ChainParams<TStore, TChain extends string> {
+  rpcUrls: string[];
   blockRange: bigint;
-  beforeHandle?: EventHandlerHook<TStore>;
-  afterHandle?: EventHandlerHook<TStore>;
+  beforeHandle?: EventHandlerHook<TStore, TChain>;
+  afterHandle?: EventHandlerHook<TStore, TChain>;
 }
-
-export type Prettify<T> = {
-  [K in keyof T]: T[K];
-} & {};
-
 export class Arkive<
   TStore extends Record<string, unknown> = {},
-  TChains extends string = "",
+  TChains extends string = never,
   TContracts extends Record<string, { abi: Abi; chains: TChains }> = {}
 > {
   #manifest: ArkiveManifest<TStore>;
@@ -83,7 +98,12 @@ export class Arkive<
 
   chain<TChain extends string>(
     chain: TChain,
-    { blockRange, rpcUrls, afterHandle, beforeHandle }: ChainParams<TStore>
+    {
+      blockRange,
+      rpcUrls,
+      afterHandle,
+      beforeHandle,
+    }: ChainParams<TStore, TChain>
   ): Arkive<TStore, TChains | TChain, TContracts> {
     this.#manifest.dataSources[chain] = deepMerge(
       this.#manifest.dataSources[chain] ?? {},
@@ -95,115 +115,163 @@ export class Arkive<
         afterHandle,
         beforeHandle,
         contracts: {},
-        blockHandlers: [],
       } as DataSourceManifest<TStore>
     ) as any;
 
-    return this;
+    return this as any;
   }
 
-  contract<TAbi extends Abi, TName extends string>(
+  contract<
+    TAbi extends Abi,
+    TName extends string,
+    TSources extends Partial<Record<TChains, ContractSourceParams[]>>
+  >(
     name: TName,
     {
       events,
       abi,
-      sources = {},
-      factorySources = {},
-    }: ContractParams<TAbi, TChains, TContracts, TStore>
+      sources,
+      factorySources,
+    }: ContractParams<TAbi, TChains, TContracts, TStore, TSources>
   ): Arkive<
     TStore,
     TChains,
     TContracts & {
       [key in TName]: {
         abi: TAbi;
-        chains: keyof typeof sources;
+        chains: keyof TSources;
       };
     }
   > {
+    sources ??= {} as TSources;
+    factorySources ??= {};
+
+    const eventsFormatted = Object.fromEntries(
+      Object.entries(events).map(([eventName, param]) => [
+        eventName,
+        (param as any).handler,
+      ])
+    );
+
+    for (const chain in sources) {
+      const source = sources[chain];
+
+      this.#manifest.dataSources[chain].contracts[name] = {
+        abi,
+        sources: Object.fromEntries(
+          source?.map(({ address, startBlock }) => [address, startBlock]) ?? []
+        ),
+        events: eventsFormatted,
+        factorySources: {},
+        id: name,
+      };
+    }
+
+    for (const contract in factorySources) {
+      const { chains, events } = factorySources[contract]!;
+      let chainsArr =
+        chains === "all" ? Object.keys(this.#manifest.dataSources) : chains;
+      for (const chain of chainsArr) {
+        if (!this.#manifest.dataSources[chain].contracts[contract]) continue; // check if parent contract exists in this chain
+
+        if (!this.#manifest.dataSources[chain].contracts[name]) {
+          this.#manifest.dataSources[chain].contracts[name] = {
+            abi,
+            sources: {},
+            events: eventsFormatted,
+            factorySources: {},
+            id: name,
+          };
+        }
+
+        this.#manifest.dataSources[chain].contracts[name].factorySources[
+          contract
+        ] = events as Record<string, string>;
+      }
+    }
+
     return this;
   }
 
-  start(settings?: ArkiveSettings) {}
+  beforeHandle<TChain extends "all" | TChains[]>({
+    chains,
+    hook,
+  }: {
+    chains: TChain;
+    hook: EventHandlerHook<
+      TStore,
+      TChain extends "all" ? TChains : TChain[number]
+    >;
+  }) {
+    const chainsArr =
+      chains === "all"
+        ? Object.keys(this.#manifest.dataSources)
+        : (chains as TChains[]);
+
+    for (const chain of chainsArr) {
+      this.#manifest.dataSources[chain].beforeHandle = hook as any;
+    }
+
+    return this;
+  }
+
+  afterHandle<TChain extends "all" | TChains[]>({
+    chains,
+    hook,
+  }: {
+    chains: TChain;
+    hook: EventHandlerHook<
+      TStore,
+      TChain extends "all" ? TChains : TChain[number]
+    >;
+  }) {
+    const chainsArr =
+      chains === "all"
+        ? Object.keys(this.#manifest.dataSources)
+        : (chains as TChains[]);
+
+    for (const chain of chainsArr) {
+      this.#manifest.dataSources[chain].afterHandle = hook as any;
+    }
+    return this;
+  }
+
+  start(settings?: ArkiveSettings) {
+    const logger =
+      settings?.logger ??
+      pino({
+        transport: { target: "pino-pretty" },
+        level: settings?.logLevel ?? "info",
+      });
+
+    const isProduction = process.env.NODE_ENV === "production";
+
+    const sqlitePath = (() => {
+      if (isProduction) {
+        const sqliteUrl = process.env["SQLITE_URL"];
+        if (!sqliteUrl) throw new Error("SQLITE_URL not set.");
+        return new URL(sqliteUrl).pathname;
+      } else {
+        return "arkiver.sqlite";
+      }
+    })();
+
+    const sqlite = drizzle(new Database(sqlitePath), {
+      schema: { arkiveMetadata, chainMetadata, childSource },
+    });
+
+    const dbProvider = new BunSqliteProvider({
+      logger,
+      db: sqlite,
+    });
+
+    const arkiver = new Arkiver({
+      context: this.#store,
+      manifest: this.#manifest,
+      dbProvider,
+      logger,
+    });
+
+		return arkiver.start()
+  }
 }
-
-const abi = [
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "address",
-        name: "from",
-        type: "address",
-      },
-      {
-        indexed: true,
-        internalType: "address",
-        name: "to",
-        type: "address",
-      },
-      {
-        indexed: false,
-        internalType: "uint256",
-        name: "value",
-        type: "uint256",
-      },
-    ],
-    name: "Transfer",
-    type: "event",
-  },
-  {
-    type: "event",
-    name: "MyEvent",
-    inputs: [],
-  },
-] as const satisfies Abi;
-
-const arkive = new Arkive()
-  .store({
-    foo: "bar" as "bar",
-  })
-  .chain("ethereum", {
-    blockRange: 10n,
-    rpcUrls: [""],
-    beforeHandle: ({ store: { foo } }) => {
-			console.log(foo)
-		},
-		afterHandle: ({ store: { foo } }) => {
-			console.log(foo)
-		}
-  })
-  .contract("erc20", {
-    abi,
-    events: {
-      Transfer: {
-        handler: async ({ store: { foo } }) => {
-					console.log(foo)
-				},
-      },
-    },
-    sources: {
-      ethereum: {
-        startBlock: 100n,
-        address: "0x12345",
-      },
-    },
-  })
-  .contract("erc721", {
-    abi,
-    events: {
-			MyEvent: {
-				handler: async ({ store: { foo } }) => {
-					console.log(foo)
-				}
-			}
-		},
-    factorySources: {
-      erc20: {
-        chains: ["ethereum"],
-        events: {
-          Transfer: "from",
-        },
-      },
-    },
-  });

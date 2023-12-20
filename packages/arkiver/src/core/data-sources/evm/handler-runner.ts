@@ -3,88 +3,96 @@ import { BoundedData, Data } from "./data-queue";
 import { AddressTopicInfo, ManifestLoader } from "./loader";
 import { Logger } from "pino";
 import { ArkiveClient } from "../../client";
-import { Store } from "../../../utils/store";
 import { retry } from "../../../utils/promise";
 import EventEmitter from "eventemitter3";
-import { DataSourceManifest } from "../../manifest-builder/manifest";
+import { DataSourceManifest } from "../../manifest";
 import { DbProvider } from "../../db-provider";
-import { EventHandler } from "../../manifest-builder/event-handler";
+import {
+  EventHandler,
+  EventHandlerHook,
+} from "../../event-handler";
 
-export interface EvmHandlerRunnerParams<TContext extends {}> {
-  dataSourceManifest: DataSourceManifest<TContext>;
+export interface EvmHandlerRunnerParams<TStore extends {}> {
+  dataSourceManifest: DataSourceManifest<TStore>;
   client: ArkiveClient;
-  context: TContext;
-  loader: ManifestLoader<TContext>;
+  context: TStore;
+  loader: ManifestLoader<TStore>;
   dbProvider: DbProvider;
   chain: string;
+  hooks: {
+    beforeHandle?: EventHandlerHook<TStore, string>;
+    afterHandle?: EventHandlerHook<TStore, string>;
+  };
   logger?: Logger;
   maxRetries?: number;
   retryDelayMs?: number;
 }
 
-type DiscreteLog<TContext extends {}> = {
+type DiscreteLog<TStore extends {}> = {
   log: Data["logs"][number];
-  logs?: never;
-} & AddressTopicInfo<TContext>;
+} & AddressTopicInfo<TStore>;
 
-type GroupedLogs<TContext extends {}> = AddressTopicInfo<TContext> & {
+type GroupedLogs<TStore extends {}> = AddressTopicInfo<TStore> & {
   logs: Data["logs"];
   log?: never;
 };
 
-export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
+export class EvmHandlerRunner<TStore extends {}> extends EventEmitter {
   #client: ArkiveClient;
-  #context: TContext;
-  #loader: ManifestLoader<TContext>;
+  #store: TStore;
+  #loader: ManifestLoader<TStore>;
   #dbProvider: DbProvider;
   #chain: string;
   #highestProcessedBlock = 0n;
+  #hooks: {
+    beforeHandle?: EventHandlerHook<TStore, string>;
+    afterHandle?: EventHandlerHook<TStore, string>;
+  };
   #logger?: Logger;
   #config: {
     maxRetries: number;
     retryDelayMs: number;
   };
-  #store: Store;
 
   constructor({
-    dataSourceManifest: { contracts, blockHandlers },
+    dataSourceManifest: { contracts },
     client,
     context,
     loader,
     logger,
     dbProvider,
     chain,
+    hooks,
     maxRetries = 5,
     retryDelayMs = 500,
-  }: EvmHandlerRunnerParams<TContext>) {
+  }: EvmHandlerRunnerParams<TStore>) {
     super();
     this.#client = client;
-    this.#context = context;
+    this.#store = context;
     this.#loader = loader;
     this.#logger = logger;
     this.#dbProvider = dbProvider;
+    this.#hooks = hooks;
     this.#chain = chain;
-    this.#store = new Store({ max: 1000 });
     this.#config = {
       maxRetries,
       retryDelayMs,
     };
   }
 
-  async processData({ data: { blocks, logs }, endBlock }: BoundedData) {
+  async processData({ data: { logs }, endBlock, startBlock }: BoundedData) {
     this.#logger?.debug({
       event: "evmHandlerRunner.processData",
-      context: { blocks: blocks.length, logs: logs.length },
+      context: { logs: logs.length },
     });
 
-    const batchLogs: Record<string, GroupedLogs<TContext>> = {};
-    const discreteLogs: DiscreteLog<TContext>[] = [];
+    const discreteLogs: DiscreteLog<TStore>[] = [];
 
     for (const log of logs) {
       const topic0 = log.topics[0];
       const address = log.address;
 
-      let handler: EventHandler<Abi, string, boolean, TContext>;
+      let handler: EventHandler<Abi, string, string, TStore>;
       let abi: Abi;
       let contractId: string;
 
@@ -123,33 +131,24 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
         contractId = wildcard.contractId;
       }
 
-      const isBatchProcess = handler._batchProcess;
-
-      if (isBatchProcess) {
-        const id = `${contractId}-${topic0}`;
-
-        const existingGroup = batchLogs[id];
-
-        if (existingGroup) {
-          existingGroup.logs.push(log);
-          continue;
-        }
-
-        batchLogs[id] = {
-          abi,
-          contractId,
-          handler,
-          logs: [log],
-        };
-      } else {
-        discreteLogs.push({ log, abi, contractId, handler });
-      }
+      discreteLogs.push({ log, abi, contractId, handler });
     }
 
-    await Promise.all([
-      this.#processDiscrete(discreteLogs, blocks),
-      this.#processBatch(batchLogs),
-    ]);
+    await this.#hooks.beforeHandle?.({
+      blockNumber: startBlock,
+      chain: this.#chain,
+      client: this.#client,
+      logger: this.#logger!,
+      store: this.#store,
+    });
+    await this.#processDiscrete(discreteLogs);
+    await this.#hooks.afterHandle?.({
+      blockNumber: endBlock,
+      chain: this.#chain,
+      client: this.#client,
+      logger: this.#logger!,
+      store: this.#store,
+    });
 
     await Promise.all([
       (async () => {
@@ -168,128 +167,45 @@ export class EvmHandlerRunner<TContext extends {}> extends EventEmitter {
           value: logs.length,
           column: "totalLogsProcessed",
         }),
-      blocks.length > 0 &&
-        this.#dbProvider.incrementMetadataValue({
-          chain: this.#chain,
-          value: blocks.length,
-          column: "totalBlocksProcessed",
-        }),
     ]);
   }
 
-  async #processBatch(groupedLogs: Record<string, GroupedLogs<TContext>>) {
-    await Promise.all(
-      Object.values(groupedLogs).map(this.#processLog.bind(this))
-    );
-  }
-
-  async #processDiscrete(
-    logs: DiscreteLog<TContext>[],
-    blocks: Data["blocks"]
-  ) {
-    const merged: (
-      | { number: bigint; log?: never }
-      | { number?: never; log: { blockNumber: bigint } }
-    )[] = [...blocks, ...logs];
-
-    const sorted = merged.sort((a, b) => {
-      const aBlock =
-        a.log?.blockNumber !== undefined ? a.log.blockNumber : a.number;
-      const bBlock =
-        b.log?.blockNumber !== undefined ? b.log.blockNumber : b.number;
-
-      if (aBlock === undefined || bBlock === undefined) {
-        throw new Error("Unexpected undefined block number");
-      }
-
-      return Number(aBlock - bBlock);
+  async #processDiscrete(logs: DiscreteLog<TStore>[]) {
+    const sorted = logs.sort((a, b) => {
+      return Number(a.log.blockNumber - b.log.blockNumber);
     });
 
     for (const item of sorted) {
-      if (item.log?.blockNumber !== undefined) {
-        // log
-        await this.#processLog(item as DiscreteLog<TContext>);
-      } else {
-        // block
-        await this.#processBlock(item as Data["blocks"][number]);
-      }
+      await this.#processLog(item as DiscreteLog<TStore>);
     }
   }
 
-  async #processLog({
-    log,
-    logs,
-    abi,
-    contractId,
-    handler,
-  }: DiscreteLog<TContext> | GroupedLogs<TContext>) {
-    const contract = log
-      ? getContract({
-          abi,
-          address: log.address,
-          publicClient: this.#client,
-        })
-      : undefined;
+  async #processLog({ log, abi, contractId, handler }: DiscreteLog<TStore>) {
+    const contract = getContract({
+      abi,
+      address: log.address,
+      publicClient: this.#client,
+    });
 
     try {
       await retry({
         callback: async () =>
           handler({
-            ...this.#context,
+            store: this.#store,
             client: this.#client,
             contract,
             event: log,
             logger: this.#logger!.child({
-              event: log?.eventName ?? logs?.[0].eventName,
+              event: log.eventName,
               contract: contractId,
             }),
-            store: this.#store,
-            events: logs,
+            chain: this.#chain,
           }),
         maxRetries: this.#config.maxRetries,
         retryDelayMs: this.#config.retryDelayMs,
       });
     } catch (error) {
       console.error(error);
-      this.emit("error", error);
-    }
-  }
-
-  async #processBlock(block: Data["blocks"][number]) {
-    const blockSources = this.#loader.sources.blocks.filter(
-      (blockSource) =>
-        (block.number - blockSource.startBlock) % blockSource.interval === 0n
-    );
-
-    if (blockSources.length === 0) {
-      this.#logger?.warn({
-        source: "evmHandlerRunner.#processBlock",
-        context: { block },
-        warning: "no-block-sources",
-      });
-      return;
-    }
-
-    try {
-      await retry({
-        callback: async () =>
-          await Promise.all(
-            blockSources.map((blockSource) =>
-              blockSource.handler({
-                ...this.#context,
-                block,
-                client: this.#client,
-                logger: this.#logger!.child({
-                  blockHandler: blockSource.handler.name,
-                }),
-                store: this.#store,
-              })
-            )
-          ),
-        maxRetries: this.#config.maxRetries,
-        retryDelayMs: this.#config.retryDelayMs,
-      });
-    } catch (error) {
       this.emit("error", error);
     }
   }

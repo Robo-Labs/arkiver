@@ -1,0 +1,26 @@
+{
+  "name": "arkive",
+  "module": "index.ts",
+  "type": "module",
+  "devDependencies": {
+    "bun-types": "latest",
+    "drizzle-kit": "^0.20.7"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "arkiver": "workspace:*",
+    "drizzle-orm": "^0.29.1",
+    "pg": "^8.11.3",
+    "postgres": "^3.4.3",
+    "viem": "^1.20.3"
+  },
+  "scripts": {
+    "generate": "npx drizzle-kit generate:pg",
+    "start": "bun run ./index.ts",
+    "studio": "drizzle-kit studio",
+    "dbup": "docker run --rm -d --name arkive -p 5432:5432 -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=arkive postgres",
+    "dbdown": "docker stop arkive"
+  }
+}

@@ -1,4 +1,4 @@
-export const ERC20_ABI = [
+export const erc20Abi = [
   {
     inputs: [],
     stateMutability: "nonpayable",

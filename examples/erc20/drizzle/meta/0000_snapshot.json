@@ -1,11 +1,11 @@
 {
+  "id": "beea4b5e-137f-4697-b070-9055b111cfee",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "5",
   "dialect": "pg",
-  "id": "63b13229-1c42-4ab9-b4a4-151c1246f7f4",
-  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
-    "balance": {
-      "name": "balance",
+    "balances": {
+      "name": "balances",
       "schema": "",
       "columns": {
         "id": {

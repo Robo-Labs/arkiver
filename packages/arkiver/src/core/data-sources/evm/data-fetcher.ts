@@ -40,7 +40,6 @@ export class EvmDataFetcher extends EventEmitter {
   #chain: string;
   #highestFetchedBlock = 0n;
   #totalLogsFetched = 0;
-  #totalBlocksFetched = 0;
   #newBlockLock = new Mutex();
   unwatch?: WatchBlockNumberReturnType;
   #logger?: Logger;
@@ -194,11 +193,6 @@ export class EvmDataFetcher extends EventEmitter {
             endBlock,
             sources: this.#loader.sources.wildcard,
           }),
-          this.#dataProvider.fetchBlocks({
-            startBlock,
-            endBlock,
-            sources: this.#loader.sources.blocks,
-          }),
         ]),
       maxRetries: this.#config.maxRetries,
       retryDelayMs: this.#config.retryDelayMs,
@@ -210,19 +204,16 @@ export class EvmDataFetcher extends EventEmitter {
         startBlock,
         endBlock,
         logs: res[0].length + res[1].length,
-        blocks: res[2].length,
       },
     });
 
     this.emit("data", {
       logs: res[0].concat(res[1]),
-      blocks: res[2],
       startBlock,
       endBlock,
     } satisfies Data);
 
     this.#totalLogsFetched += res[0].length + res[1].length;
-    this.#totalBlocksFetched += res[2].length;
   }
 
   async #updateDb() {
@@ -237,17 +228,10 @@ export class EvmDataFetcher extends EventEmitter {
           chain: this.#chain,
           value: this.#totalLogsFetched,
           column: "totalLogsFetched",
-        }),
-      this.#totalBlocksFetched > 0 &&
-        this.#dbProvider.incrementMetadataValue({
-          chain: this.#chain,
-          value: this.#totalBlocksFetched,
-          column: "totalBlocksFetched",
-        }),
+        })
     ]);
 
     this.#totalLogsFetched = 0;
-    this.#totalBlocksFetched = 0;
   }
 
   stop() {
